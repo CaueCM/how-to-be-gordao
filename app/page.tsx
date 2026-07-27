@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { LoginScreen } from "@/components/screens/LoginScreen";
 import { DashboardScreen } from "@/components/screens/DashboardScreen";
@@ -14,14 +15,14 @@ import { NewGoalWizard } from "@/components/wizard/NewGoalWizard";
 import { CheckinModal } from "@/components/checkin/CheckinModal";
 
 export default function Home() {
-  const isLoggedIn = useAppStore((s) => s.isLoggedIn);
+  const { status } = useSession();
   const screen = useAppStore((s) => s.screen);
   const openWizard = useAppStore((s) => s.openWizard);
   const selectedPlanId = useAppStore((s) => s.selectedPlanId);
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px]" style={{ background: "var(--screen-grad)" }}>
-      {!isLoggedIn ? (
+      {status === "loading" ? null : status !== "authenticated" ? (
         <LoginScreen />
       ) : (
         <>

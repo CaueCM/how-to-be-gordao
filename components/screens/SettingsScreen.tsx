@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession, signOut } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { Screen, SectionLabel } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
@@ -7,10 +8,11 @@ import { Select } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Check, AlertTriangle } from "@/components/icons";
 
-const USER_NAME = "Cauê";
-const USER_EMAIL = "cauemuriano@gmail.com";
-
 export function SettingsScreen() {
+  const { data: session } = useSession();
+  const userName = session?.user?.name || "Você";
+  const userEmail = session?.user?.email || "";
+
   const calendarConnected = useAppStore((s) => s.calendarConnected);
   const toggleCalendarConnected = useAppStore((s) => s.toggleCalendarConnected);
   const notificationsEnabled = useAppStore((s) => s.notificationsEnabled);
@@ -21,7 +23,6 @@ export function SettingsScreen() {
   const setWeekStart = useAppStore((s) => s.setWeekStart);
   const emptyDemo = useAppStore((s) => s.emptyDemo);
   const toggleEmptyDemo = useAppStore((s) => s.toggleEmptyDemo);
-  const doLogout = useAppStore((s) => s.doLogout);
 
   return (
     <Screen>
@@ -31,13 +32,13 @@ export function SettingsScreen() {
         <SectionLabel>Conta</SectionLabel>
         <div className="flex items-center gap-3 rounded-[22px] bg-[var(--surface-card)] p-5">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[var(--color-text)] text-[14px] font-bold text-white">
-            {USER_NAME.charAt(0)}
+            {userName.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[14px] font-semibold text-[var(--color-text)]">{USER_NAME}</p>
-            <p className="truncate text-[11px] text-[var(--color-neutral-400)]">{USER_EMAIL}</p>
+            <p className="truncate text-[14px] font-semibold text-[var(--color-text)]">{userName}</p>
+            <p className="truncate text-[11px] text-[var(--color-neutral-400)]">{userEmail}</p>
           </div>
-          <Button variant="secondary" onClick={doLogout}>
+          <Button variant="secondary" onClick={() => signOut({ callbackUrl: "/" })}>
             Cair fora
           </Button>
         </div>

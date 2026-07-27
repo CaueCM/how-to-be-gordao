@@ -1,5 +1,6 @@
 "use client";
 
+import { signIn } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
 
@@ -33,7 +34,6 @@ function StepDots({ step }: { step: 0 | 1 }) {
 export function LoginScreen() {
   const loginStep = useAppStore((s) => s.loginStep);
   const goLoginStep = useAppStore((s) => s.goLoginStep);
-  const doLogin = useAppStore((s) => s.doLogin);
 
   return (
     <div className="min-h-screen flex flex-col justify-center p-7">
@@ -62,7 +62,7 @@ export function LoginScreen() {
             A gente só quer acesso pra lotar sua agenda de lembretes chatos e te cobrar até você
             fazer. Desconecta quando quiser, medroso — é só ir em Ajustes.
           </p>
-          <Button block className="mt-8" onClick={doLogin}>
+          <Button block className="mt-8" onClick={() => signIn("google", { callbackUrl: "/" })}>
             <span className="flex h-[18px] w-[18px] items-center justify-center rounded-[4px] bg-white text-[12px] font-bold text-[var(--color-text)]">
               G
             </span>

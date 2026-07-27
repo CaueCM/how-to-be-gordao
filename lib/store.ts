@@ -26,7 +26,6 @@ const EMPTY_WIZARD_FIELDS: WizardFields = {
 
 interface AppState {
   today: string;
-  isLoggedIn: boolean;
   loginStep: 0 | 1;
   screen: Screen;
   selectedPlanId: string | null;
@@ -54,8 +53,6 @@ interface AppState {
   checkinHabitDone: boolean;
 
   goLoginStep: (step: 0 | 1) => void;
-  doLogin: () => void;
-  doLogout: () => void;
 
   go: (screen: Screen) => void;
   openPlan: (id: string) => void;
@@ -98,7 +95,6 @@ export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       today: todayISO(),
-      isLoggedIn: false,
       loginStep: 0,
       screen: "dashboard",
       selectedPlanId: null,
@@ -126,8 +122,6 @@ export const useAppStore = create<AppState>()(
       checkinHabitDone: true,
 
       goLoginStep: (step) => set({ loginStep: step }),
-      doLogin: () => set({ isLoggedIn: true, screen: "dashboard" }),
-      doLogout: () => set({ isLoggedIn: false, loginStep: 0, screen: "dashboard" }),
 
       go: (screen) => set({ screen }),
       openPlan: (id) => set({ screen: "planDetail", selectedPlanId: id }),
@@ -302,7 +296,6 @@ export const useAppStore = create<AppState>()(
       name: "gordao-app-storage",
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
-        isLoggedIn: s.isLoggedIn,
         plans: s.plans,
         emptyDemo: s.emptyDemo,
         calendarConnected: s.calendarConnected,
