@@ -45,6 +45,7 @@ interface AppState {
   plans: Plan[];
   plansLoaded: boolean;
   plansLoading: boolean;
+  plansError: string | null;
 
   wizardOpen: boolean;
   wizardStep: 1 | 2 | 3 | 4;
@@ -117,6 +118,7 @@ export const useAppStore = create<AppState>()(
       plans: [],
       plansLoaded: false,
       plansLoading: false,
+      plansError: null,
 
       wizardOpen: false,
       wizardStep: 1,
@@ -134,10 +136,12 @@ export const useAppStore = create<AppState>()(
 
       loadPlans: async () => {
         if (get().plansLoading) return;
-        set({ plansLoading: true });
+        set({ plansLoading: true, plansError: null });
         try {
           const plans = await api.getPlans();
           set({ plans, plansLoaded: true });
+        } catch (err) {
+          set({ plansError: err instanceof Error ? err.message : "Erro ao carregar seus dados." });
         } finally {
           set({ plansLoading: false });
         }
