@@ -9,8 +9,8 @@ import type {
   WeekStart,
   WizardFields,
 } from "./types";
-import { INITIAL_PLANS } from "./mockData";
 import { todayISO } from "./business";
+import * as api from "./actions";
 
 const EMPTY_WIZARD_FIELDS: WizardFields = {
   title: "",
@@ -23,6 +23,10 @@ const EMPTY_WIZARD_FIELDS: WizardFields = {
   subtasksText: "",
   habitFrequency: "3x por semana",
 };
+
+function newId(): string {
+  return crypto.randomUUID();
+}
 
 interface AppState {
   today: string;
@@ -39,6 +43,8 @@ interface AppState {
   planSearch: string;
   goalSearch: string;
   plans: Plan[];
+  plansLoaded: boolean;
+  plansLoading: boolean;
 
   wizardOpen: boolean;
   wizardStep: 1 | 2 | 3 | 4;
@@ -53,6 +59,7 @@ interface AppState {
   checkinHabitDone: boolean;
 
   goLoginStep: (step: 0 | 1) => void;
+  loadPlans: () => Promise<void>;
 
   go: (screen: Screen) => void;
   openPlan: (id: string) => void;
@@ -107,7 +114,9 @@ export const useAppStore = create<AppState>()(
       weekStart: "sunday",
       planSearch: "",
       goalSearch: "",
-      plans: INITIAL_PLANS,
+      plans: [],
+      plansLoaded: false,
+      plansLoading: false,
 
       wizardOpen: false,
       wizardStep: 1,
@@ -122,6 +131,17 @@ export const useAppStore = create<AppState>()(
       checkinHabitDone: true,
 
       goLoginStep: (step) => set({ loginStep: step }),
+
+      loadPlans: async () => {
+        if (get().plansLoading) return;
+        set({ plansLoading: true });
+        try {
+          const plans = await api.getPlans();
+          set({ plans, plansLoaded: true });
+        } finally {
+          set({ plansLoading: false });
+        }
+      },
 
       go: (screen) => set({ screen }),
       openPlan: (id) => set({ screen: "planDetail", selectedPlanId: id }),
@@ -139,9 +159,20 @@ export const useAppStore = create<AppState>()(
       toggleEmptyDemo: () => set((s) => ({ emptyDemo: !s.emptyDemo })),
       toggleCalendarConnected: () => set((s) => ({ calendarConnected: !s.calendarConnected })),
       setCalendarViewMode: (mode) => set({ calendarViewMode: mode }),
-      toggleNotifications: () => set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
-      setUnitPreference: (v) => set({ unitPreference: v }),
-      setWeekStart: (v) => set({ weekStart: v }),
+      toggleNotifications: () =>
+        set((s) => {
+          const next = !s.notificationsEnabled;
+          void api.updatePreferences({ notificationsEnabled: next }).catch(console.error);
+          return { notificationsEnabled: next };
+        }),
+      setUnitPreference: (v) => {
+        set({ unitPreference: v });
+        void api.updatePreferences({ unitPreference: v }).catch(console.error);
+      },
+      setWeekStart: (v) => {
+        set({ weekStart: v });
+        void api.updatePreferences({ weekStart: v }).catch(console.error);
+      },
       setPlanSearch: (v) => set({ planSearch: v }),
       setGoalSearch: (v) => set({ goalSearch: v }),
 
@@ -163,7 +194,8 @@ export const useAppStore = create<AppState>()(
 
       wizardConfirm: () => {
         const { wizardType, wizardFields, wizardPlanId, plans, today } = get();
-        const id = `g${Date.now()}`;
+        if (!wizardPlanId) return;
+        const id = newId();
         let goal: Goal;
         if (wizardType === "numeric") {
           goal = {
@@ -184,7 +216,7 @@ export const useAppStore = create<AppState>()(
             .split("\n")
             .map((t) => t.trim())
             .filter(Boolean)
-            .map((t, i) => ({ id: `st${Date.now()}${i}`, text: t, done: false }));
+            .map((t) => ({ id: newId(), text: t, done: false }));
           goal = {
             id,
             type: "task",
@@ -205,10 +237,10 @@ export const useAppStore = create<AppState>()(
             checkins: [],
           };
         }
-        const plans2 = plans.map((p) =>
-          p.id === wizardPlanId ? { ...p, goals: [...p.goals, goal] } : p
-        );
+        const planId = wizardPlanId;
+        const plans2 = plans.map((p) => (p.id === planId ? { ...p, goals: [...p.goals, goal] } : p));
         set({ plans: plans2, wizardStep: 4, newGoalId: id });
+        void api.createGoal(planId, goal).catch(console.error);
       },
       wizardViewGoal: () => {
         const id = get().newGoalId;
@@ -232,7 +264,7 @@ export const useAppStore = create<AppState>()(
       setCheckinValue: (v) => set({ checkinValue: v }),
       setCheckinNote: (v) => set({ checkinNote: v }),
       setCheckinHabitDone: (v) => set({ checkinHabitDone: v }),
-      toggleSubtask: (goalId, subtaskId) =>
+      toggleSubtask: (goalId, subtaskId) => {
         set((s) => ({
           plans: s.plans.map((p) => ({
             ...p,
@@ -247,9 +279,12 @@ export const useAppStore = create<AppState>()(
                 : g
             ),
           })),
-        })),
+        }));
+        void api.toggleSubtask(goalId, subtaskId).catch(console.error);
+      },
       submitCheckin: () => {
         const { checkinGoalId, checkinValue, checkinNote, checkinHabitDone, plans, today } = get();
+        if (!checkinGoalId) return;
         const plans2 = plans.map((p) => ({
           ...p,
           goals: p.goals.map((g) => {
@@ -274,6 +309,15 @@ export const useAppStore = create<AppState>()(
           }),
         }));
         set({ plans: plans2, checkinGoalId: null });
+        void api
+          .submitCheckin({
+            goalId: checkinGoalId,
+            date: today,
+            value: Number(checkinValue),
+            habitDone: checkinHabitDone,
+            note: checkinNote,
+          })
+          .catch(console.error);
       },
 
       deleteGoal: (goalId) => {
@@ -282,6 +326,7 @@ export const useAppStore = create<AppState>()(
           screen: "planDetail",
           selectedGoalId: null,
         }));
+        void api.deleteGoal(goalId).catch(console.error);
       },
 
       findGoal: (goalId) => {
@@ -295,14 +340,7 @@ export const useAppStore = create<AppState>()(
     {
       name: "gordao-app-storage",
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({
-        plans: s.plans,
-        emptyDemo: s.emptyDemo,
-        calendarConnected: s.calendarConnected,
-        notificationsEnabled: s.notificationsEnabled,
-        unitPreference: s.unitPreference,
-        weekStart: s.weekStart,
-      }),
+      partialize: (s) => ({ emptyDemo: s.emptyDemo }),
     }
   )
 );

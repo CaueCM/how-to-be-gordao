@@ -6,7 +6,7 @@ import { PlanCard } from "@/components/PlanCard";
 import { EmptyState } from "@/components/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { CalendarDisconnectedBanner, TodayCheckinCard, StreakHighlightCard } from "@/components/DashboardBits";
-import { buildPlanVM } from "@/lib/business";
+import { buildPlanVM, goalStatus } from "@/lib/business";
 import type { HabitGoal } from "@/lib/types";
 
 export function DashboardScreen() {
@@ -14,17 +14,16 @@ export function DashboardScreen() {
   const emptyDemo = useAppStore((s) => s.emptyDemo);
   const calendarConnected = useAppStore((s) => s.calendarConnected);
   const toggleEmptyDemo = useAppStore((s) => s.toggleEmptyDemo);
-  const findGoal = useAppStore((s) => s.findGoal);
+  const today = useAppStore((s) => s.today);
 
   const hasPlans = !emptyDemo && plans.length > 0;
   const plansVM = plans.map((p) => buildPlanVM(p));
+  const allGoals = plans.flatMap((p) => p.goals);
 
-  const todayGoals = ["g1", "g2", "g3"]
-    .map((id) => findGoal(id).goal)
-    .filter((g): g is NonNullable<typeof g> => !!g);
-  const streakGoals = ["g2", "g6"]
-    .map((id) => findGoal(id).goal)
-    .filter((g): g is HabitGoal => !!g && g.type === "habit");
+  const todayGoals = allGoals.filter(
+    (g) => (g.type === "numeric" || g.type === "habit") && goalStatus(g, today) !== "concluida"
+  );
+  const streakGoals = allGoals.filter((g): g is HabitGoal => g.type === "habit");
 
   return (
     <Screen>

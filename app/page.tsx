@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { LoginScreen } from "@/components/screens/LoginScreen";
@@ -19,12 +20,18 @@ export default function Home() {
   const screen = useAppStore((s) => s.screen);
   const openWizard = useAppStore((s) => s.openWizard);
   const selectedPlanId = useAppStore((s) => s.selectedPlanId);
+  const plansLoaded = useAppStore((s) => s.plansLoaded);
+  const loadPlans = useAppStore((s) => s.loadPlans);
+
+  useEffect(() => {
+    if (status === "authenticated") void loadPlans();
+  }, [status, loadPlans]);
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px]" style={{ background: "var(--screen-grad)" }}>
       {status === "loading" ? null : status !== "authenticated" ? (
         <LoginScreen />
-      ) : (
+      ) : !plansLoaded ? null : (
         <>
           {screen === "dashboard" && <DashboardScreen />}
           {screen === "plans" && <MissionsScreen />}

@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/lib/generated/prisma
+
+# duplicate agent-skill copies (kept only under .claude/skills)
+/.agents/
+/.windsurf/

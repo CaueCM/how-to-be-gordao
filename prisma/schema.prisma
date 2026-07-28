@@ -1,0 +1,91 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                   String   @id @default(cuid())
+  email                String   @unique
+  name                 String?
+  image                String?
+  unitPreference       String   @default("kg")
+  weekStart            String   @default("sunday")
+  notificationsEnabled Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  plans Plan[]
+}
+
+model Plan {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  icon      String
+  createdAt DateTime @default(now())
+
+  goals Goal[]
+
+  @@index([userId])
+}
+
+model Goal {
+  id        String   @id @default(cuid())
+  planId    String
+  plan      Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  createdAt DateTime @default(now())
+
+  // numeric
+  unit          String?
+  startValue    Float?
+  currentValue  Float?
+  targetValue   Float?
+  targetDate    DateTime? @db.Date
+  planStartDate DateTime? @db.Date
+  frequency     String?
+
+  // task
+  forceDone Boolean?
+
+  // habit
+  targetFrequency String?
+  streakCurrent   Int?
+  streakBest      Int?
+
+  subtasks Subtask[]
+  checkins Checkin[]
+
+  @@index([planId])
+}
+
+model Subtask {
+  id     String  @id @default(cuid())
+  goalId String
+  goal   Goal    @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  text   String
+  done   Boolean @default(false)
+
+  @@index([goalId])
+}
+
+model Checkin {
+  id        String   @id @default(cuid())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  value     Float?
+  done      Boolean?
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([goalId])
+}
