@@ -23,8 +23,8 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
             onClick={() => onChange(opt.value)}
             className={
               active
-                ? "text-[15px] font-bold text-[var(--color-text)]"
-                : "text-[15px] font-normal text-[var(--color-neutral-400)]"
+                ? "text-[15px] font-bold text-[var(--color-text)] transition-colors duration-150 active:scale-95"
+                : "text-[15px] font-normal text-[var(--color-neutral-400)] transition-colors duration-150 active:scale-95"
             }
           >
             {opt.label}

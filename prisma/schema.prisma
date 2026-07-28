@@ -18,6 +18,7 @@ model User {
   unitPreference       String   @default("kg")
   weekStart            String   @default("sunday")
   notificationsEnabled Boolean  @default(true)
+  hasOnboarded         Boolean  @default(false)
   createdAt            DateTime @default(now())
 
   plans Plan[]

@@ -7,7 +7,7 @@ export function ProgressBar({ pct, height = 5 }: { pct: number; height?: number 
       style={{ height }}
     >
       <div
-        className="rounded-[999px] bg-[var(--color-text)]"
+        className="rounded-[999px] bg-[var(--color-text)] transition-[width] duration-500 ease-out"
         style={{ height, width: `${Math.max(0, Math.min(100, pct))}%` }}
       />
     </div>

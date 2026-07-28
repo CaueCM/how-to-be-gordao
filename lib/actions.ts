@@ -4,12 +4,17 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { Goal, Plan, UnitPreference, WeekStart } from "@/lib/types";
 
-async function requireUserId(): Promise<string> {
+async function requireUser() {
   const session = await auth();
   const email = session?.user?.email;
   if (!email) throw new Error("Não autenticado");
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) throw new Error("Usuário não encontrado");
+  return user;
+}
+
+async function requireUserId(): Promise<string> {
+  const user = await requireUser();
   return user.id;
 }
 
@@ -81,10 +86,18 @@ function serializeGoal(g: GoalWithRelations): Goal {
   };
 }
 
-export async function getPlans(): Promise<Plan[]> {
-  const userId = await requireUserId();
+export interface BootstrapData {
+  plans: Plan[];
+  unitPreference: UnitPreference;
+  weekStart: WeekStart;
+  notificationsEnabled: boolean;
+  hasOnboarded: boolean;
+}
+
+export async function getBootstrap(): Promise<BootstrapData> {
+  const user = await requireUser();
   const plans = await prisma.plan.findMany({
-    where: { userId },
+    where: { userId: user.id },
     orderBy: { createdAt: "asc" },
     include: {
       goals: {
@@ -93,12 +106,23 @@ export async function getPlans(): Promise<Plan[]> {
       },
     },
   });
-  return plans.map((p) => ({
-    id: p.id,
-    name: p.name,
-    icon: p.icon as Plan["icon"],
-    goals: p.goals.map((g) => serializeGoal(g)),
-  }));
+  return {
+    plans: plans.map((p) => ({
+      id: p.id,
+      name: p.name,
+      icon: p.icon as Plan["icon"],
+      goals: p.goals.map((g) => serializeGoal(g)),
+    })),
+    unitPreference: user.unitPreference as UnitPreference,
+    weekStart: user.weekStart as WeekStart,
+    notificationsEnabled: user.notificationsEnabled,
+    hasOnboarded: user.hasOnboarded,
+  };
+}
+
+export async function completeOnboarding(): Promise<void> {
+  const userId = await requireUserId();
+  await prisma.user.update({ where: { id: userId }, data: { hasOnboarded: true } });
 }
 
 async function assertOwnsPlan(planId: string, userId: string) {

@@ -3,6 +3,7 @@
 import { signIn } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
+import { StepDots } from "@/components/ui/StepDots";
 
 function BrandLockup() {
   return (
@@ -18,15 +19,6 @@ function BrandLockup() {
       >
         GORDÃO
       </span>
-    </div>
-  );
-}
-
-function StepDots({ step }: { step: 0 | 1 }) {
-  return (
-    <div className="flex items-center justify-center gap-2 mt-8">
-      <span className="block h-[3px] w-7 rounded-full" style={{ background: step === 0 ? "var(--color-text)" : "var(--color-neutral-300)" }} />
-      <span className="block h-[3px] w-7 rounded-full" style={{ background: step === 1 ? "var(--color-text)" : "var(--color-neutral-300)" }} />
     </div>
   );
 }
@@ -51,7 +43,9 @@ export function LoginScreen() {
           <Button block className="mt-8" onClick={() => goLoginStep(1)}>
             Bora nessa
           </Button>
-          <StepDots step={0} />
+          <div className="mt-8">
+            <StepDots total={2} step={0} />
+          </div>
         </>
       ) : (
         <>
@@ -71,7 +65,9 @@ export function LoginScreen() {
           <Button variant="ghost" block className="mt-2" onClick={() => goLoginStep(0)}>
             Voltar
           </Button>
-          <StepDots step={1} />
+          <div className="mt-8">
+            <StepDots total={2} step={1} />
+          </div>
         </>
       )}
     </div>

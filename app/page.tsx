@@ -14,6 +14,7 @@ import { TabBar } from "@/components/ui/TabBar";
 import { Fab } from "@/components/ui/Fab";
 import { NewGoalWizard } from "@/components/wizard/NewGoalWizard";
 import { CheckinModal } from "@/components/checkin/CheckinModal";
+import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
 import { Button } from "@/components/ui/Button";
 
 function LoadErrorScreen({ message }: { message: string }) {
@@ -40,10 +41,16 @@ export default function Home() {
   const plansLoaded = useAppStore((s) => s.plansLoaded);
   const plansError = useAppStore((s) => s.plansError);
   const loadPlans = useAppStore((s) => s.loadPlans);
+  const hasOnboarded = useAppStore((s) => s.hasOnboarded);
+  const openOnboarding = useAppStore((s) => s.openOnboarding);
 
   useEffect(() => {
     if (status === "authenticated") void loadPlans();
   }, [status, loadPlans]);
+
+  useEffect(() => {
+    if (plansLoaded && !hasOnboarded) openOnboarding();
+  }, [plansLoaded, hasOnboarded, openOnboarding]);
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px]" style={{ background: "var(--screen-grad)" }}>
@@ -66,6 +73,7 @@ export default function Home() {
           <TabBar />
           <NewGoalWizard />
           <CheckinModal />
+          <OnboardingFlow />
         </>
       )}
     </div>

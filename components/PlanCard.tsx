@@ -12,7 +12,7 @@ export function PlanCard({ plan, iconSize = 40 }: { plan: PlanViewModel; iconSiz
   return (
     <button
       onClick={() => openPlan(plan.id)}
-      className="flex flex-col items-start gap-2 rounded-[22px] bg-[var(--surface-card)] p-5 text-left"
+      className="flex flex-col items-start gap-2 rounded-[22px] bg-[var(--surface-card)] p-5 text-left transition-transform duration-150 active:scale-[0.97]"
     >
       <IconBox size={iconSize}>
         <PlanIconGlyph icon={plan.icon} size={iconSize === 40 ? 18 : 20} strokeWidth={2.2} color="var(--color-text)" />

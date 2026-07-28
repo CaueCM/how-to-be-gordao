@@ -11,7 +11,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-[999px] text-[13px] font-semibold tracking-[0.02em] transition-colors disabled:opacity-35 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 rounded-[999px] text-[13px] font-semibold tracking-[0.02em] transition-all duration-150 active:scale-[0.96] disabled:opacity-35 disabled:cursor-not-allowed disabled:active:scale-100";
 
 const variantClass: Record<Variant, string> = {
   primary: "bg-[var(--color-text)] text-white hover:bg-black min-h-[44px] px-5 py-[11px]",

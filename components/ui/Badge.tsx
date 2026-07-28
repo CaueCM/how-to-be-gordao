@@ -3,7 +3,7 @@
 export function StatusBadge({ label, bg, color }: { label: string; bg: string; color: string }) {
   return (
     <span
-      className="inline-block rounded-[10px] px-2 py-1 text-[10px] font-bold"
+      className="inline-block rounded-[10px] px-2 py-1 text-[10px] font-bold transition-colors duration-300"
       style={{ background: bg, color }}
     >
       {label}

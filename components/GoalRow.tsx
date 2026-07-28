@@ -12,7 +12,7 @@ export function GoalRow({ goal }: { goal: GoalViewModel }) {
   return (
     <button
       onClick={() => openGoal(goal.id)}
-      className="flex items-center gap-3 py-3 text-left w-full active:bg-[var(--color-neutral-100)]"
+      className="flex items-center gap-3 py-3 text-left w-full transition-colors duration-150 active:bg-[var(--color-neutral-100)]"
       style={{ borderBottom: "1px solid var(--color-divider)" }}
     >
       <IconBox size={36}>

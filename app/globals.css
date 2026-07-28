@@ -84,3 +84,71 @@ select {
 * {
   scrollbar-width: none;
 }
+
+/* Transições */
+@keyframes fade-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-screen-in {
+  animation: fade-slide-in 220ms ease-out both;
+}
+
+.animate-fade-in {
+  animation: fade-in 150ms ease-out both;
+}
+
+.animate-modal-panel-in {
+  animation: modal-panel-in 200ms ease-out both;
+}
+
+.animate-pop-in {
+  animation: pop-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-screen-in,
+  .animate-fade-in,
+  .animate-modal-panel-in,
+  .animate-pop-in {
+    animation: none;
+  }
+}

@@ -47,6 +47,10 @@ interface AppState {
   plansLoading: boolean;
   plansError: string | null;
 
+  hasOnboarded: boolean;
+  onboardingOpen: boolean;
+  onboardingStep: number;
+
   wizardOpen: boolean;
   wizardStep: 1 | 2 | 3 | 4;
   wizardType: "numeric" | "task" | "habit" | null;
@@ -61,6 +65,12 @@ interface AppState {
 
   goLoginStep: (step: 0 | 1) => void;
   loadPlans: () => Promise<void>;
+
+  openOnboarding: () => void;
+  closeOnboarding: () => void;
+  onboardingNext: () => void;
+  onboardingBack: () => void;
+  finishOnboarding: () => void;
 
   go: (screen: Screen) => void;
   openPlan: (id: string) => void;
@@ -120,6 +130,10 @@ export const useAppStore = create<AppState>()(
       plansLoading: false,
       plansError: null,
 
+      hasOnboarded: true,
+      onboardingOpen: false,
+      onboardingStep: 0,
+
       wizardOpen: false,
       wizardStep: 1,
       wizardType: null,
@@ -138,13 +152,29 @@ export const useAppStore = create<AppState>()(
         if (get().plansLoading) return;
         set({ plansLoading: true, plansError: null });
         try {
-          const plans = await api.getPlans();
-          set({ plans, plansLoaded: true });
+          const data = await api.getBootstrap();
+          set({
+            plans: data.plans,
+            plansLoaded: true,
+            unitPreference: data.unitPreference,
+            weekStart: data.weekStart,
+            notificationsEnabled: data.notificationsEnabled,
+            hasOnboarded: data.hasOnboarded,
+          });
         } catch (err) {
           set({ plansError: err instanceof Error ? err.message : "Erro ao carregar seus dados." });
         } finally {
           set({ plansLoading: false });
         }
+      },
+
+      openOnboarding: () => set({ onboardingOpen: true, onboardingStep: 0 }),
+      closeOnboarding: () => set({ onboardingOpen: false }),
+      onboardingNext: () => set((s) => ({ onboardingStep: s.onboardingStep + 1 })),
+      onboardingBack: () => set((s) => ({ onboardingStep: Math.max(0, s.onboardingStep - 1) })),
+      finishOnboarding: () => {
+        set({ onboardingOpen: false, hasOnboarded: true });
+        void api.completeOnboarding().catch(console.error);
       },
 
       go: (screen) => set({ screen }),

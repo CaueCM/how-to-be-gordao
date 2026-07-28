@@ -23,6 +23,7 @@ export function SettingsScreen() {
   const setWeekStart = useAppStore((s) => s.setWeekStart);
   const emptyDemo = useAppStore((s) => s.emptyDemo);
   const toggleEmptyDemo = useAppStore((s) => s.toggleEmptyDemo);
+  const openOnboarding = useAppStore((s) => s.openOnboarding);
 
   return (
     <Screen>
@@ -102,6 +103,20 @@ export function SettingsScreen() {
             />
           </div>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <SectionLabel>Ajuda</SectionLabel>
+        <button
+          onClick={openOnboarding}
+          className="flex items-center justify-between gap-3 rounded-[22px] bg-[var(--surface-card)] p-5 text-left transition-transform active:scale-[0.98]"
+        >
+          <div>
+            <p className="text-[13px] font-semibold text-[var(--color-text)]">Como usar o app</p>
+            <p className="text-[11px] text-[var(--color-neutral-400)]">Reveja o tutorial rapidinho</p>
+          </div>
+          <span className="text-[18px] text-[var(--color-neutral-400)]">›</span>
+        </button>
       </div>
 
       <div className="flex flex-col gap-3">
