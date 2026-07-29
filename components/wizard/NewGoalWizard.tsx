@@ -14,7 +14,7 @@ const TYPE_CARDS = [
   { type: "habit" as const, Icon: Zap, label: "Hábito", hint: "Repete ou fica pra trás" },
 ];
 
-const HABIT_FREQUENCIES = ["1x por semana", "2x por semana", "3x por semana", "5x por semana", "todos os dias"];
+export const HABIT_FREQUENCIES = ["1x por semana", "2x por semana", "3x por semana", "5x por semana", "todos os dias"];
 
 export function NewGoalWizard() {
   const wizardOpen = useAppStore((s) => s.wizardOpen);

@@ -14,6 +14,7 @@ import { TabBar } from "@/components/ui/TabBar";
 import { Fab } from "@/components/ui/Fab";
 import { NewGoalWizard } from "@/components/wizard/NewGoalWizard";
 import { CheckinModal } from "@/components/checkin/CheckinModal";
+import { EditGoalModal } from "@/components/edit/EditGoalModal";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
 import { Button } from "@/components/ui/Button";
 
@@ -73,6 +74,7 @@ export default function Home() {
           <TabBar />
           <NewGoalWizard />
           <CheckinModal />
+          <EditGoalModal />
           <OnboardingFlow />
         </>
       )}

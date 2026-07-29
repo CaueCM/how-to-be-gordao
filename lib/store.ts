@@ -24,6 +24,28 @@ const EMPTY_WIZARD_FIELDS: WizardFields = {
   habitFrequency: "3x por semana",
 };
 
+interface EditGoalFields {
+  title: string;
+  unit: string;
+  startValue: string;
+  targetValue: string;
+  targetDate: string;
+  frequency: "daily" | "weekly";
+  targetFrequency: string;
+  subtasks: { id: string; text: string }[];
+}
+
+const EMPTY_EDIT_FIELDS: EditGoalFields = {
+  title: "",
+  unit: "",
+  startValue: "0",
+  targetValue: "",
+  targetDate: "",
+  frequency: "weekly",
+  targetFrequency: "3x por semana",
+  subtasks: [],
+};
+
 function newId(): string {
   return crypto.randomUUID();
 }
@@ -62,6 +84,10 @@ interface AppState {
   checkinValue: string;
   checkinNote: string;
   checkinHabitDone: boolean;
+
+  editGoalId: string | null;
+  editFields: EditGoalFields;
+  editOriginalSubtasks: { id: string; text: string }[];
 
   goLoginStep: (step: 0 | 1) => void;
   loadPlans: () => Promise<void>;
@@ -106,6 +132,14 @@ interface AppState {
   submitCheckin: () => void;
   deleteGoal: (goalId: string) => void;
 
+  openEditGoal: (goalId: string) => void;
+  closeEditGoal: () => void;
+  updateEditField: (key: keyof Omit<EditGoalFields, "subtasks">, value: string) => void;
+  addEditSubtask: (text: string) => void;
+  updateEditSubtaskText: (id: string, text: string) => void;
+  removeEditSubtask: (id: string) => void;
+  submitGoalEdit: () => void;
+
   findGoal: (goalId: string) => { plan: Plan | null; goal: Goal | null };
 }
 
@@ -145,6 +179,10 @@ export const useAppStore = create<AppState>()(
       checkinValue: "",
       checkinNote: "",
       checkinHabitDone: true,
+
+      editGoalId: null,
+      editFields: EMPTY_EDIT_FIELDS,
+      editOriginalSubtasks: [],
 
       goLoginStep: (step) => set({ loginStep: step }),
 
@@ -361,6 +399,130 @@ export const useAppStore = create<AppState>()(
           selectedGoalId: null,
         }));
         void api.deleteGoal(goalId).catch(console.error);
+      },
+
+      openEditGoal: (goalId) => {
+        const { goal } = get().findGoal(goalId);
+        if (!goal) return;
+        if (goal.type === "numeric") {
+          set({
+            editGoalId: goalId,
+            editFields: {
+              ...EMPTY_EDIT_FIELDS,
+              title: goal.title,
+              unit: goal.unit,
+              startValue: String(goal.startValue),
+              targetValue: String(goal.targetValue),
+              targetDate: goal.targetDate,
+              frequency: goal.frequency,
+            },
+            editOriginalSubtasks: [],
+          });
+        } else if (goal.type === "task") {
+          set({
+            editGoalId: goalId,
+            editFields: {
+              ...EMPTY_EDIT_FIELDS,
+              title: goal.title,
+              targetDate: goal.targetDate,
+              subtasks: goal.subtasks.map((s) => ({ id: s.id, text: s.text })),
+            },
+            editOriginalSubtasks: goal.subtasks.map((s) => ({ id: s.id, text: s.text })),
+          });
+        } else {
+          set({
+            editGoalId: goalId,
+            editFields: { ...EMPTY_EDIT_FIELDS, title: goal.title, targetFrequency: goal.targetFrequency },
+            editOriginalSubtasks: [],
+          });
+        }
+      },
+      closeEditGoal: () => set({ editGoalId: null }),
+      updateEditField: (key, value) => set((s) => ({ editFields: { ...s.editFields, [key]: value } })),
+      addEditSubtask: (text) =>
+        set((s) => ({ editFields: { ...s.editFields, subtasks: [...s.editFields.subtasks, { id: newId(), text }] } })),
+      updateEditSubtaskText: (id, text) =>
+        set((s) => ({
+          editFields: {
+            ...s.editFields,
+            subtasks: s.editFields.subtasks.map((st) => (st.id === id ? { ...st, text } : st)),
+          },
+        })),
+      removeEditSubtask: (id) =>
+        set((s) => ({ editFields: { ...s.editFields, subtasks: s.editFields.subtasks.filter((st) => st.id !== id) } })),
+
+      submitGoalEdit: () => {
+        const { editGoalId, editFields, editOriginalSubtasks, plans } = get();
+        if (!editGoalId) return;
+        const { goal } = get().findGoal(editGoalId);
+        if (!goal) return;
+
+        const plans2 = plans.map((p) => ({
+          ...p,
+          goals: p.goals.map((g) => {
+            if (g.id !== editGoalId) return g;
+            if (g.type === "numeric") {
+              return {
+                ...g,
+                title: editFields.title || g.title,
+                unit: editFields.unit,
+                startValue: Number(editFields.startValue) || 0,
+                targetValue: Number(editFields.targetValue) || 0,
+                targetDate: editFields.targetDate || g.targetDate,
+                frequency: editFields.frequency,
+              };
+            }
+            if (g.type === "task") {
+              return {
+                ...g,
+                title: editFields.title || g.title,
+                targetDate: editFields.targetDate || g.targetDate,
+                subtasks: editFields.subtasks.map((s) => ({
+                  id: s.id,
+                  text: s.text,
+                  done: g.subtasks.find((os) => os.id === s.id)?.done ?? false,
+                })),
+              };
+            }
+            return { ...g, title: editFields.title || g.title, targetFrequency: editFields.targetFrequency };
+          }),
+        }));
+        set({ plans: plans2, editGoalId: null });
+
+        if (goal.type === "numeric") {
+          void api
+            .updateGoal(editGoalId, {
+              title: editFields.title,
+              unit: editFields.unit,
+              startValue: Number(editFields.startValue) || 0,
+              targetValue: Number(editFields.targetValue) || 0,
+              targetDate: editFields.targetDate,
+              frequency: editFields.frequency,
+            })
+            .catch(console.error);
+        } else if (goal.type === "task") {
+          void api.updateGoal(editGoalId, { title: editFields.title, targetDate: editFields.targetDate }).catch(console.error);
+
+          const originalIds = new Set(editOriginalSubtasks.map((s) => s.id));
+          const currentIds = new Set(editFields.subtasks.map((s) => s.id));
+          for (const st of editFields.subtasks) {
+            if (!originalIds.has(st.id)) {
+              void api.addSubtask(editGoalId, st.id, st.text).catch(console.error);
+            } else {
+              const original = editOriginalSubtasks.find((s) => s.id === st.id);
+              if (original && original.text !== st.text) {
+                void api.updateSubtaskText(st.id, st.text).catch(console.error);
+              }
+            }
+          }
+          for (const original of editOriginalSubtasks) {
+            if (!currentIds.has(original.id)) {
+              void api.removeSubtask(original.id).catch(console.error);
+            }
+          }
+        } else {
+          void api.updateGoal(editGoalId, { title: editFields.title, targetFrequency: editFields.targetFrequency }).catch(console.error);
+        }
       },
 
       findGoal: (goalId) => {

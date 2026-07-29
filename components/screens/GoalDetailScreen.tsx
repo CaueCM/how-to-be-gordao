@@ -20,6 +20,7 @@ export function GoalDetailScreen() {
   const openCheckin = useAppStore((s) => s.openCheckin);
   const toggleSubtask = useAppStore((s) => s.toggleSubtask);
   const deleteGoal = useAppStore((s) => s.deleteGoal);
+  const openEditGoal = useAppStore((s) => s.openEditGoal);
   const today = useAppStore((s) => s.today);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -46,7 +47,7 @@ export function GoalDetailScreen() {
         <Button className="flex-1" onClick={() => openCheckin(goal.id)}>
           Confessar progresso
         </Button>
-        <Button variant="icon" aria-label="Editar">
+        <Button variant="icon" aria-label="Editar" onClick={() => openEditGoal(goal.id)}>
           <Pencil size={16} strokeWidth={2.2} />
         </Button>
         <Button variant="icon" aria-label="Excluir" onClick={() => setConfirmingDelete(true)}>

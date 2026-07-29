@@ -136,6 +136,12 @@ async function assertOwnsGoal(goalId: string, userId: string) {
   return goal;
 }
 
+async function assertOwnsSubtask(subtaskId: string, userId: string) {
+  const subtask = await prisma.subtask.findFirst({ where: { id: subtaskId, goal: { plan: { userId } } } });
+  if (!subtask) throw new Error("Sub-tarefa não encontrada");
+  return subtask;
+}
+
 export async function createGoal(planId: string, goal: Goal): Promise<void> {
   const userId = await requireUserId();
   await assertOwnsPlan(planId, userId);
@@ -187,6 +193,51 @@ export async function deleteGoal(goalId: string): Promise<void> {
   const userId = await requireUserId();
   await assertOwnsGoal(goalId, userId);
   await prisma.goal.delete({ where: { id: goalId } });
+}
+
+export interface UpdateGoalInput {
+  title?: string;
+  unit?: string;
+  startValue?: number;
+  targetValue?: number;
+  targetDate?: string;
+  frequency?: "daily" | "weekly";
+  targetFrequency?: string;
+}
+
+export async function updateGoal(goalId: string, updates: UpdateGoalInput): Promise<void> {
+  const userId = await requireUserId();
+  await assertOwnsGoal(goalId, userId);
+  await prisma.goal.update({
+    where: { id: goalId },
+    data: {
+      title: updates.title,
+      unit: updates.unit,
+      startValue: updates.startValue,
+      targetValue: updates.targetValue,
+      targetDate: updates.targetDate !== undefined ? toDateOnly(updates.targetDate) : undefined,
+      frequency: updates.frequency,
+      targetFrequency: updates.targetFrequency,
+    },
+  });
+}
+
+export async function addSubtask(goalId: string, id: string, text: string): Promise<void> {
+  const userId = await requireUserId();
+  await assertOwnsGoal(goalId, userId);
+  await prisma.subtask.create({ data: { id, goalId, text, done: false } });
+}
+
+export async function updateSubtaskText(subtaskId: string, text: string): Promise<void> {
+  const userId = await requireUserId();
+  await assertOwnsSubtask(subtaskId, userId);
+  await prisma.subtask.update({ where: { id: subtaskId }, data: { text } });
+}
+
+export async function removeSubtask(subtaskId: string): Promise<void> {
+  const userId = await requireUserId();
+  await assertOwnsSubtask(subtaskId, userId);
+  await prisma.subtask.delete({ where: { id: subtaskId } });
 }
 
 export async function toggleSubtask(goalId: string, subtaskId: string): Promise<void> {
