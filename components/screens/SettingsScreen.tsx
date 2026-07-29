@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { Screen, SectionLabel } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
@@ -12,9 +12,8 @@ export function SettingsScreen() {
   const { data: session } = useSession();
   const userName = session?.user?.name || "Você";
   const userEmail = session?.user?.email || "";
+  const calendarConnected = !!session?.calendarConnected;
 
-  const calendarConnected = useAppStore((s) => s.calendarConnected);
-  const toggleCalendarConnected = useAppStore((s) => s.toggleCalendarConnected);
   const notificationsEnabled = useAppStore((s) => s.notificationsEnabled);
   const toggleNotifications = useAppStore((s) => s.toggleNotifications);
   const unitPreference = useAppStore((s) => s.unitPreference);
@@ -57,9 +56,16 @@ export function SettingsScreen() {
             <p className="text-[13px] font-semibold text-[var(--color-text)]">
               {calendarConnected ? "Conectado" : "Desconectado"}
             </p>
-            <p className="text-[11px] text-[var(--color-neutral-400)]">Controla se os lembretes chegam, esperto</p>
+            <p className="text-[11px] text-[var(--color-neutral-400)]">
+              {calendarConnected ? "Desconectar sai da sua conta também, sem meio-termo" : "Controla se os lembretes chegam, esperto"}
+            </p>
           </div>
-          <Button variant="secondary" onClick={toggleCalendarConnected}>
+          <Button
+            variant="secondary"
+            onClick={() =>
+              calendarConnected ? signOut({ callbackUrl: "/" }) : signIn("google", { callbackUrl: "/" })
+            }
+          >
             {calendarConnected ? "Desconectar" : "Reconectar"}
           </Button>
         </div>

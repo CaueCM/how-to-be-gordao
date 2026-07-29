@@ -1,5 +1,6 @@
 "use client";
 
+import { signIn } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
 import { AlertTriangle, Zap } from "@/components/icons";
@@ -14,12 +15,11 @@ function RowCard({ children }: { children: React.ReactNode }) {
 }
 
 export function CalendarDisconnectedBanner() {
-  const toggleCalendarConnected = useAppStore((s) => s.toggleCalendarConnected);
   return (
     <div className="flex items-center gap-3 rounded-[22px] bg-[var(--surface-card)] px-5 py-4">
       <AlertTriangle size={18} strokeWidth={2.2} color="var(--color-danger)" />
       <p className="flex-1 text-[12px] text-[var(--color-text)]">Calendar caiu, gênio. Nada sincroniza.</p>
-      <Button variant="secondary" onClick={toggleCalendarConnected}>
+      <Button variant="secondary" onClick={() => signIn("google", { callbackUrl: "/" })}>
         Reconecta
       </Button>
     </div>

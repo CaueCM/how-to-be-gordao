@@ -48,6 +48,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
+        return token;
+      }
+
+      const expiresAt = token.expiresAt as number | undefined;
+      const refreshToken = token.refreshToken as string | undefined;
+      if (!expiresAt || Date.now() < expiresAt * 1000 - 60_000) {
+        return token;
+      }
+      if (!refreshToken) return token;
+
+      try {
+        const res = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_id: process.env.AUTH_GOOGLE_ID!,
+            client_secret: process.env.AUTH_GOOGLE_SECRET!,
+            grant_type: "refresh_token",
+            refresh_token: refreshToken,
+          }),
+        });
+        const refreshed = await res.json();
+        if (!res.ok) throw refreshed;
+        token.accessToken = refreshed.access_token;
+        token.expiresAt = Math.floor(Date.now() / 1000) + refreshed.expires_in;
+        token.refreshToken = refreshed.refresh_token ?? refreshToken;
+      } catch (err) {
+        console.error("Failed to refresh Google access token", err);
+        token.accessToken = undefined;
       }
       return token;
     },

@@ -57,7 +57,6 @@ interface AppState {
   selectedPlanId: string | null;
   selectedGoalId: string | null;
   emptyDemo: boolean;
-  calendarConnected: boolean;
   calendarViewMode: CalendarViewMode;
   notificationsEnabled: boolean;
   unitPreference: UnitPreference;
@@ -105,7 +104,6 @@ interface AppState {
   backToPlan: () => void;
 
   toggleEmptyDemo: () => void;
-  toggleCalendarConnected: () => void;
   setCalendarViewMode: (mode: CalendarViewMode) => void;
   toggleNotifications: () => void;
   setUnitPreference: (v: UnitPreference) => void;
@@ -152,7 +150,6 @@ export const useAppStore = create<AppState>()(
       selectedPlanId: null,
       selectedGoalId: null,
       emptyDemo: false,
-      calendarConnected: true,
       calendarViewMode: "month",
       notificationsEnabled: true,
       unitPreference: "kg",
@@ -229,7 +226,6 @@ export const useAppStore = create<AppState>()(
       backToPlan: () => set({ screen: "planDetail" }),
 
       toggleEmptyDemo: () => set((s) => ({ emptyDemo: !s.emptyDemo })),
-      toggleCalendarConnected: () => set((s) => ({ calendarConnected: !s.calendarConnected })),
       setCalendarViewMode: (mode) => set({ calendarViewMode: mode }),
       toggleNotifications: () =>
         set((s) => {

@@ -62,6 +62,9 @@ model Goal {
   streakCurrent   Int?
   streakBest      Int?
 
+  // Google Calendar sync
+  googleEventId String?
+
   subtasks Subtask[]
   checkins Checkin[]
 

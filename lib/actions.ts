@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { Goal, Plan, UnitPreference, WeekStart } from "@/lib/types";
+import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, numericRecurrenceRule, habitRecurrenceRule } from "@/lib/googleCalendar";
 
 async function requireUser() {
   const session = await auth();
@@ -16,6 +17,11 @@ async function requireUser() {
 async function requireUserId(): Promise<string> {
   const user = await requireUser();
   return user.id;
+}
+
+async function getAccessToken(): Promise<string | null> {
+  const session = await auth();
+  return session?.accessToken ?? null;
 }
 
 function toDateOnly(iso: string): Date {
@@ -187,11 +193,44 @@ export async function createGoal(planId: string, goal: Goal): Promise<void> {
       },
     });
   }
+
+  try {
+    const accessToken = await getAccessToken();
+    if (!accessToken) return;
+    let googleEventId: string | null = null;
+    if (goal.type === "numeric") {
+      googleEventId = await createCalendarEvent(accessToken, {
+        title: `Confessar: ${goal.title}`,
+        startDate: goal.planStartDate,
+        recurrence: numericRecurrenceRule(goal.frequency, goal.targetDate),
+      });
+    } else if (goal.type === "task") {
+      googleEventId = await createCalendarEvent(accessToken, {
+        title: `Prazo: ${goal.title}`,
+        startDate: goal.targetDate,
+      });
+    } else {
+      googleEventId = await createCalendarEvent(accessToken, {
+        title: `Hábito: ${goal.title}`,
+        startDate: new Date().toISOString().slice(0, 10),
+        recurrence: habitRecurrenceRule(goal.targetFrequency),
+      });
+    }
+    if (googleEventId) {
+      await prisma.goal.update({ where: { id: goal.id }, data: { googleEventId } });
+    }
+  } catch (err) {
+    console.error("Calendar sync failed for new goal", err);
+  }
 }
 
 export async function deleteGoal(goalId: string): Promise<void> {
   const userId = await requireUserId();
-  await assertOwnsGoal(goalId, userId);
+  const goal = await assertOwnsGoal(goalId, userId);
+  if (goal.googleEventId) {
+    const accessToken = await getAccessToken();
+    if (accessToken) await deleteCalendarEvent(accessToken, goal.googleEventId);
+  }
   await prisma.goal.delete({ where: { id: goalId } });
 }
 
@@ -207,8 +246,8 @@ export interface UpdateGoalInput {
 
 export async function updateGoal(goalId: string, updates: UpdateGoalInput): Promise<void> {
   const userId = await requireUserId();
-  await assertOwnsGoal(goalId, userId);
-  await prisma.goal.update({
+  const goal = await assertOwnsGoal(goalId, userId);
+  const updated = await prisma.goal.update({
     where: { id: goalId },
     data: {
       title: updates.title,
@@ -220,6 +259,32 @@ export async function updateGoal(goalId: string, updates: UpdateGoalInput): Prom
       targetFrequency: updates.targetFrequency,
     },
   });
+
+  if (!goal.googleEventId) return;
+  try {
+    const accessToken = await getAccessToken();
+    if (!accessToken) return;
+    if (updated.type === "numeric") {
+      await updateCalendarEvent(accessToken, goal.googleEventId, {
+        title: `Confessar: ${updated.title}`,
+        startDate: fromDateOnly(updated.planStartDate),
+        recurrence: numericRecurrenceRule((updated.frequency as "daily" | "weekly") ?? "weekly", fromDateOnly(updated.targetDate)),
+      });
+    } else if (updated.type === "task") {
+      await updateCalendarEvent(accessToken, goal.googleEventId, {
+        title: `Prazo: ${updated.title}`,
+        startDate: fromDateOnly(updated.targetDate),
+      });
+    } else {
+      await updateCalendarEvent(accessToken, goal.googleEventId, {
+        title: `Hábito: ${updated.title}`,
+        startDate: new Date().toISOString().slice(0, 10),
+        recurrence: habitRecurrenceRule(updated.targetFrequency ?? "3x por semana"),
+      });
+    }
+  } catch (err) {
+    console.error("Calendar resync failed", err);
+  }
 }
 
 export async function addSubtask(goalId: string, id: string, text: string): Promise<void> {

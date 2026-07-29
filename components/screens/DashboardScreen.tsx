@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { Screen, SectionLabel } from "@/components/ui/Screen";
 import { PlanCard } from "@/components/PlanCard";
@@ -10,9 +11,9 @@ import { buildPlanVM, goalStatus } from "@/lib/business";
 import type { HabitGoal } from "@/lib/types";
 
 export function DashboardScreen() {
+  const { data: session } = useSession();
   const plans = useAppStore((s) => s.plans);
   const emptyDemo = useAppStore((s) => s.emptyDemo);
-  const calendarConnected = useAppStore((s) => s.calendarConnected);
   const toggleEmptyDemo = useAppStore((s) => s.toggleEmptyDemo);
   const today = useAppStore((s) => s.today);
 
@@ -34,7 +35,7 @@ export function DashboardScreen() {
         </p>
       </div>
 
-      {!calendarConnected && <CalendarDisconnectedBanner />}
+      {!session?.calendarConnected && <CalendarDisconnectedBanner />}
 
       <div className="flex flex-col gap-3">
         <SectionLabel>Suas missões</SectionLabel>

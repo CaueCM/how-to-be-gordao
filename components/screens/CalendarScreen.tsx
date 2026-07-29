@@ -1,23 +1,48 @@
 "use client";
 
+import { useState } from "react";
+import { useSession, signIn } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { Screen } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { Check, AlertTriangle } from "@/components/icons";
-import { buildCalendarDays } from "@/lib/business";
+import { Check, AlertTriangle, ChevronLeft } from "@/components/icons";
+import { buildCalendarDays, buildWeekDays, formatMonthYear } from "@/lib/business";
 
 const WEEKDAY_HEADER = ["D", "S", "T", "Q", "Q", "S", "S"];
 
 export function CalendarScreen() {
+  const { data: session } = useSession();
+  const calendarConnected = !!session?.calendarConnected;
   const calendarViewMode = useAppStore((s) => s.calendarViewMode);
   const setCalendarViewMode = useAppStore((s) => s.setCalendarViewMode);
-  const calendarConnected = useAppStore((s) => s.calendarConnected);
-  const toggleCalendarConnected = useAppStore((s) => s.toggleCalendarConnected);
   const openGoal = useAppStore((s) => s.openGoal);
+  const plans = useAppStore((s) => s.plans);
+  const today = useAppStore((s) => s.today);
 
-  const days = buildCalendarDays();
-  const weekDays = days.filter((d) => d.inWeek);
+  const todayDate = new Date(`${today}T00:00:00`);
+  const [viewYear, setViewYear] = useState(todayDate.getFullYear());
+  const [viewMonth, setViewMonth] = useState(todayDate.getMonth());
+
+  const goPrevMonth = () => {
+    if (viewMonth === 0) {
+      setViewYear((y) => y - 1);
+      setViewMonth(11);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+  };
+  const goNextMonth = () => {
+    if (viewMonth === 11) {
+      setViewYear((y) => y + 1);
+      setViewMonth(0);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+  };
+
+  const days = buildCalendarDays(plans, viewYear, viewMonth, today);
+  const weekDays = buildWeekDays(plans, today);
   const weekAgenda = weekDays.flatMap((d) => d.events.map((e) => ({ ...e, dayLabel: d.day })));
 
   return (
@@ -43,7 +68,7 @@ export function CalendarScreen() {
           {calendarConnected ? "Sincronizado com o Google Calendar" : "Google Calendar desconectado"}
         </span>
         {!calendarConnected && (
-          <Button variant="secondary" onClick={toggleCalendarConnected}>
+          <Button variant="secondary" onClick={() => signIn("google", { callbackUrl: "/" })}>
             Reconecta
           </Button>
         )}
@@ -51,6 +76,26 @@ export function CalendarScreen() {
 
       {calendarViewMode === "month" ? (
         <div>
+          <div className="mb-3 flex items-center justify-between">
+            <button
+              onClick={goPrevMonth}
+              aria-label="Mês anterior"
+              className="flex h-8 w-8 items-center justify-center rounded-full transition-transform active:scale-90"
+            >
+              <ChevronLeft size={16} strokeWidth={2.2} color="var(--color-text)" />
+            </button>
+            <span className="text-[13px] font-semibold capitalize text-[var(--color-text)]">
+              {formatMonthYear(viewYear, viewMonth)}
+            </span>
+            <button
+              onClick={goNextMonth}
+              aria-label="Próximo mês"
+              className="flex h-8 w-8 items-center justify-center rounded-full transition-transform active:scale-90"
+              style={{ transform: "rotate(180deg)" }}
+            >
+              <ChevronLeft size={16} strokeWidth={2.2} color="var(--color-text)" />
+            </button>
+          </div>
           <div className="grid grid-cols-7 gap-1 mb-2">
             {WEEKDAY_HEADER.map((w, i) => (
               <div key={i} className="text-center text-[10px]" style={{ opacity: 0.5 }}>

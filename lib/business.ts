@@ -8,11 +8,21 @@ import type {
   PlanViewModel,
   TaskGoal,
 } from "./types";
+import { isHabitCheckpointDay } from "./habitSchedule";
 
 const MONTHS_PT = [
   "jan", "fev", "mar", "abr", "mai", "jun",
   "jul", "ago", "set", "out", "nov", "dez",
 ];
+
+const MONTHS_FULL_PT = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+
+export function formatMonthYear(year: number, month: number): string {
+  return `${MONTHS_FULL_PT[month]} de ${year}`;
+}
 
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -229,18 +239,6 @@ export interface CalendarDay {
   weekdayLabel: string;
 }
 
-const MOCK_EVENTS: Record<number, { label: string; goalId: string; tone: "accent" | "accent2" | "done" | "late" }[]> = {
-  5: [{ label: "Pesagem", goalId: "g1", tone: "accent" }],
-  10: [{ label: "Apresentação Q3", goalId: "g5", tone: "done" }],
-  12: [{ label: "Pesagem", goalId: "g1", tone: "accent" }],
-  19: [{ label: "Pesagem", goalId: "g1", tone: "accent" }],
-  20: [{ label: "Resenha (prazo)", goalId: "g4", tone: "late" }],
-  26: [
-    { label: "Treinar", goalId: "g2", tone: "accent2" },
-    { label: "Pesagem", goalId: "g1", tone: "accent" },
-  ],
-};
-
 const TONE_STYLE: Record<string, [string, string]> = {
   accent: ["var(--color-neutral-200)", "var(--color-text)"],
   accent2: ["var(--color-success-tint)", "var(--color-success)"],
@@ -250,31 +248,85 @@ const TONE_STYLE: Record<string, [string, string]> = {
 
 const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-export function buildCalendarDays(): CalendarDay[] {
-  const leading = 3;
-  const totalDays = 31;
+function toneFor(tone: keyof typeof TONE_STYLE): { bg: string; color: string } {
+  const [bg, color] = TONE_STYLE[tone];
+  return { bg, color };
+}
+
+function isNumericCheckpoint(goal: NumericGoal, dateIso: string): boolean {
+  if (dateIso < goal.planStartDate || dateIso > goal.targetDate) return false;
+  if (goal.frequency === "daily") return true;
+  const diff = daysBetween(goal.planStartDate, dateIso);
+  return diff >= 0 && diff % 7 === 0;
+}
+
+function eventsForDate(goals: Goal[], dateIso: string, today: string): CalendarEvent[] {
+  const events: CalendarEvent[] = [];
+  for (const g of goals) {
+    if (isNumeric(g) && isNumericCheckpoint(g, dateIso)) {
+      const hasCheckin = g.checkins.some((c) => c.date === dateIso);
+      const tone = hasCheckin ? "done" : dateIso < today ? "late" : "accent";
+      events.push({ label: `Confessar: ${g.title}`, goalId: g.id, ...toneFor(tone) });
+    } else if (isTask(g) && dateIso === g.targetDate) {
+      const concluded = taskStatus(g, today) === "concluida";
+      const tone = concluded ? "done" : dateIso < today ? "late" : "accent";
+      events.push({ label: `Prazo: ${g.title}`, goalId: g.id, ...toneFor(tone) });
+    } else if (isHabit(g) && isHabitCheckpointDay(g.targetFrequency, dateIso)) {
+      const hasCheckin = g.checkins.some((c) => c.date === dateIso);
+      const tone = hasCheckin ? "done" : dateIso < today ? "late" : "accent2";
+      events.push({ label: `Hábito: ${g.title}`, goalId: g.id, ...toneFor(tone) });
+    }
+  }
+  return events;
+}
+
+function isoDate(year: number, month: number, day: number): string {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function buildCalendarDays(plans: Plan[], year: number, month: number, today: string): CalendarDay[] {
+  const goals = plans.flatMap((p) => p.goals);
+  const leading = new Date(year, month, 1).getDay();
+  const totalDays = new Date(year, month + 1, 0).getDate();
   const cells: CalendarDay[] = [];
   for (let i = 0; i < leading; i++) {
     cells.push({ key: `b${i}`, day: null, events: [], inWeek: false, borderColor: "transparent", weekdayLabel: "" });
   }
   for (let d = 1; d <= totalDays; d++) {
-    const evs = (MOCK_EVENTS[d] || []).map((e) => ({
-      label: e.label,
-      goalId: e.goalId,
-      bg: TONE_STYLE[e.tone][0],
-      color: TONE_STYLE[e.tone][1],
-    }));
+    const dateIso = isoDate(year, month, d);
     cells.push({
       key: `d${d}`,
       day: d,
-      events: evs,
-      inWeek: d >= 20 && d <= 26,
-      borderColor: d === 26 ? "var(--color-text)" : "var(--color-divider)",
-      weekdayLabel: WEEKDAY_LABELS[(d + 2) % 7],
+      events: eventsForDate(goals, dateIso, today),
+      inWeek: false,
+      borderColor: dateIso === today ? "var(--color-text)" : "var(--color-divider)",
+      weekdayLabel: WEEKDAY_LABELS[new Date(year, month, d).getDay()],
     });
   }
   while (cells.length % 7 !== 0) {
     cells.push({ key: `t${cells.length}`, day: null, events: [], inWeek: false, borderColor: "transparent", weekdayLabel: "" });
+  }
+  return cells;
+}
+
+export function buildWeekDays(plans: Plan[], today: string): CalendarDay[] {
+  const goals = plans.flatMap((p) => p.goals);
+  const todayDate = new Date(`${today}T00:00:00`);
+  const start = new Date(todayDate);
+  start.setDate(todayDate.getDate() - todayDate.getDay());
+  const cells: CalendarDay[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const dateIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    cells.push({
+      key: `w${i}`,
+      day: d.getDate(),
+      events: eventsForDate(goals, dateIso, today),
+      inWeek: true,
+      borderColor: dateIso === today ? "var(--color-text)" : "var(--color-divider)",
+      weekdayLabel: WEEKDAY_LABELS[d.getDay()],
+    });
   }
   return cells;
 }
