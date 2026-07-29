@@ -28,7 +28,12 @@ export function CalendarDisconnectedBanner() {
 
 export function TodayCheckinCard({ goal }: { goal: Goal }) {
   const openCheckin = useAppStore((s) => s.openCheckin);
-  const hint = goal.type === "numeric" ? `Registrar ${goal.unit}` : "Marcar feito hoje";
+  const hint =
+    goal.type === "numeric"
+      ? `Registrar ${goal.unit}`
+      : goal.type === "task"
+        ? "Marcar sub-tarefas"
+        : "Marcar feito hoje";
   return (
     <RowCard>
       <div className="min-w-0 flex-1">

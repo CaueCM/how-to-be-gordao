@@ -253,11 +253,29 @@ function toneFor(tone: keyof typeof TONE_STYLE): { bg: string; color: string } {
   return { bg, color };
 }
 
-function isNumericCheckpoint(goal: NumericGoal, dateIso: string): boolean {
+export function isNumericCheckpoint(goal: NumericGoal, dateIso: string): boolean {
   if (dateIso < goal.planStartDate || dateIso > goal.targetDate) return false;
   if (goal.frequency === "daily") return true;
   const diff = daysBetween(goal.planStartDate, dateIso);
   return diff >= 0 && diff % 7 === 0;
+}
+
+export function goalsDueToday(goals: Goal[], today: string): Goal[] {
+  return goals.filter((g) => {
+    if (isNumeric(g)) {
+      if (goalStatus(g, today) === "concluida") return false;
+      return isNumericCheckpoint(g, today) || goalStatus(g, today) === "atrasada";
+    }
+    if (isHabit(g)) {
+      return isHabitCheckpointDay(g.targetFrequency, today);
+    }
+    if (isTask(g)) {
+      const status = goalStatus(g, today);
+      if (status === "concluida") return false;
+      return g.targetDate === today || status === "atrasada";
+    }
+    return false;
+  });
 }
 
 function eventsForDate(goals: Goal[], dateIso: string, today: string): CalendarEvent[] {
