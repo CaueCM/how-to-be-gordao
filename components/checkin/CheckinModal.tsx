@@ -5,7 +5,6 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea, FieldLabel } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { SubtaskChecklist } from "@/components/SubtaskChecklist";
 
 export function CheckinModal() {
   const checkinGoalId = useAppStore((s) => s.checkinGoalId);
@@ -13,12 +12,13 @@ export function CheckinModal() {
   const checkinValue = useAppStore((s) => s.checkinValue);
   const checkinNote = useAppStore((s) => s.checkinNote);
   const checkinHabitDone = useAppStore((s) => s.checkinHabitDone);
+  const checkinTaskDone = useAppStore((s) => s.checkinTaskDone);
 
   const closeCheckin = useAppStore((s) => s.closeCheckin);
   const setCheckinValue = useAppStore((s) => s.setCheckinValue);
   const setCheckinNote = useAppStore((s) => s.setCheckinNote);
   const setCheckinHabitDone = useAppStore((s) => s.setCheckinHabitDone);
-  const toggleSubtask = useAppStore((s) => s.toggleSubtask);
+  const setCheckinTaskDone = useAppStore((s) => s.setCheckinTaskDone);
   const submitCheckin = useAppStore((s) => s.submitCheckin);
 
   if (!checkinGoalId) return null;
@@ -27,7 +27,7 @@ export function CheckinModal() {
 
   return (
     <Modal
-      title={`Confissão — ${goal.title}`}
+      title={`Registro — ${goal.title}`}
       onClose={closeCheckin}
       actions={
         <>
@@ -60,7 +60,14 @@ export function CheckinModal() {
         )}
 
         {goal.type === "task" && (
-          <SubtaskChecklist subtasks={goal.subtasks} onToggle={(id) => toggleSubtask(goal.id, id)} />
+          <SegmentedControl
+            value={checkinTaskDone ? "feito" : "nao_feito"}
+            onChange={(v) => setCheckinTaskDone(v === "feito")}
+            options={[
+              { value: "feito", label: "Feito" },
+              { value: "nao_feito", label: "Não feito" },
+            ]}
+          />
         )}
 
         <div>

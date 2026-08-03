@@ -64,10 +64,7 @@ export function numericStatus(goal: NumericGoal, today: string): GoalStatus {
 }
 
 export function taskStatus(goal: TaskGoal, today: string): GoalStatus {
-  const allDone = goal.subtasks.length
-    ? goal.subtasks.every((s) => s.done)
-    : goal.forceDone;
-  if (allDone) return "concluida";
+  if (goal.forceDone) return "concluida";
   if (today > goal.targetDate) return "atrasada";
   return "pendente";
 }
@@ -90,9 +87,7 @@ export function goalProgressPct(goal: Goal): number {
     return clamp(0, 100, pct);
   }
   if (isTask(goal)) {
-    if (!goal.subtasks.length) return goal.forceDone ? 100 : 0;
-    const done = goal.subtasks.filter((s) => s.done).length;
-    return Math.round((done / goal.subtasks.length) * 100);
+    return goal.forceDone ? 100 : 0;
   }
   return clamp(0, 100, Math.round((goal.streakCurrent / Math.max(goal.streakBest, 8)) * 100));
 }
@@ -284,7 +279,7 @@ function eventsForDate(goals: Goal[], dateIso: string, today: string): CalendarE
     if (isNumeric(g) && isNumericCheckpoint(g, dateIso)) {
       const hasCheckin = g.checkins.some((c) => c.date === dateIso);
       const tone = hasCheckin ? "done" : dateIso < today ? "late" : "accent";
-      events.push({ label: `Confessar: ${g.title}`, goalId: g.id, ...toneFor(tone) });
+      events.push({ label: `Registrar: ${g.title}`, goalId: g.id, ...toneFor(tone) });
     } else if (isTask(g) && dateIso === g.targetDate) {
       const concluded = taskStatus(g, today) === "concluida";
       const tone = concluded ? "done" : dateIso < today ? "late" : "accent";

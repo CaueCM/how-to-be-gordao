@@ -45,7 +45,7 @@ export function GoalDetailScreen() {
 
       <div className="flex items-center gap-2">
         <Button className="flex-1" onClick={() => openCheckin(goal.id)}>
-          Confessar progresso
+          Registrar progresso
         </Button>
         <Button variant="icon" aria-label="Editar" onClick={() => openEditGoal(goal.id)}>
           <Pencil size={16} strokeWidth={2.2} />

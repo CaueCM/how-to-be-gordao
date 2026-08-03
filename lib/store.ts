@@ -83,6 +83,7 @@ interface AppState {
   checkinValue: string;
   checkinNote: string;
   checkinHabitDone: boolean;
+  checkinTaskDone: boolean;
 
   editGoalId: string | null;
   editFields: EditGoalFields;
@@ -126,6 +127,7 @@ interface AppState {
   setCheckinValue: (v: string) => void;
   setCheckinNote: (v: string) => void;
   setCheckinHabitDone: (v: boolean) => void;
+  setCheckinTaskDone: (v: boolean) => void;
   toggleSubtask: (goalId: string, subtaskId: string) => void;
   submitCheckin: () => void;
   deleteGoal: (goalId: string) => void;
@@ -176,6 +178,7 @@ export const useAppStore = create<AppState>()(
       checkinValue: "",
       checkinNote: "",
       checkinHabitDone: true,
+      checkinTaskDone: true,
 
       editGoalId: null,
       editFields: EMPTY_EDIT_FIELDS,
@@ -326,12 +329,14 @@ export const useAppStore = create<AppState>()(
           checkinValue: goal && goal.type === "numeric" ? String(goal.currentValue) : "",
           checkinNote: "",
           checkinHabitDone: true,
+          checkinTaskDone: goal && goal.type === "task" ? goal.forceDone : true,
         });
       },
       closeCheckin: () => set({ checkinGoalId: null }),
       setCheckinValue: (v) => set({ checkinValue: v }),
       setCheckinNote: (v) => set({ checkinNote: v }),
       setCheckinHabitDone: (v) => set({ checkinHabitDone: v }),
+      setCheckinTaskDone: (v) => set({ checkinTaskDone: v }),
       toggleSubtask: (goalId, subtaskId) => {
         set((s) => ({
           plans: s.plans.map((p) => ({
@@ -351,7 +356,7 @@ export const useAppStore = create<AppState>()(
         void api.toggleSubtask(goalId, subtaskId).catch(console.error);
       },
       submitCheckin: () => {
-        const { checkinGoalId, checkinValue, checkinNote, checkinHabitDone, plans, today } = get();
+        const { checkinGoalId, checkinValue, checkinNote, checkinHabitDone, checkinTaskDone, plans, today } = get();
         if (!checkinGoalId) return;
         const plans2 = plans.map((p) => ({
           ...p,
@@ -373,7 +378,11 @@ export const useAppStore = create<AppState>()(
                 checkins: [{ date: today, done: checkinHabitDone, note: checkinNote }, ...g.checkins],
               };
             }
-            return { ...g, checkins: [{ date: today, note: checkinNote }, ...g.checkins] };
+            return {
+              ...g,
+              forceDone: checkinTaskDone,
+              checkins: [{ date: today, note: checkinNote }, ...g.checkins],
+            };
           }),
         }));
         set({ plans: plans2, checkinGoalId: null });
@@ -383,6 +392,7 @@ export const useAppStore = create<AppState>()(
             date: today,
             value: Number(checkinValue),
             habitDone: checkinHabitDone,
+            taskDone: checkinTaskDone,
             note: checkinNote,
           })
           .catch(console.error);

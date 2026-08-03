@@ -200,7 +200,7 @@ export async function createGoal(planId: string, goal: Goal): Promise<void> {
     let googleEventId: string | null = null;
     if (goal.type === "numeric") {
       googleEventId = await createCalendarEvent(accessToken, {
-        title: `Confessar: ${goal.title}`,
+        title: `Registrar: ${goal.title}`,
         startDate: goal.planStartDate,
         recurrence: numericRecurrenceRule(goal.frequency, goal.targetDate),
       });
@@ -266,7 +266,7 @@ export async function updateGoal(goalId: string, updates: UpdateGoalInput): Prom
     if (!accessToken) return;
     if (updated.type === "numeric") {
       await updateCalendarEvent(accessToken, goal.googleEventId, {
-        title: `Confessar: ${updated.title}`,
+        title: `Registrar: ${updated.title}`,
         startDate: fromDateOnly(updated.planStartDate),
         recurrence: numericRecurrenceRule((updated.frequency as "daily" | "weekly") ?? "weekly", fromDateOnly(updated.targetDate)),
       });
@@ -318,6 +318,7 @@ interface SubmitCheckinInput {
   date: string;
   value?: number;
   habitDone?: boolean;
+  taskDone?: boolean;
   note: string;
 }
 
@@ -345,6 +346,7 @@ export async function submitCheckin(input: SubmitCheckinInput): Promise<void> {
       await tx.checkin.create({
         data: { goalId: goal.id, date: toDateOnly(input.date), note: input.note },
       });
+      await tx.goal.update({ where: { id: goal.id }, data: { forceDone: !!input.taskDone } });
     }
   });
 }

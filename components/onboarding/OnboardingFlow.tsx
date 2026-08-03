@@ -18,8 +18,8 @@ const SLIDES = [
     icons: [Target, ListChecks, Zap],
   },
   {
-    title: "Confessar progresso é obrigatório",
-    body: "Toca em \"Confessar progresso\" sempre que fizer alguma coisa. É isso que mantém a sequência viva e o gráfico honesto — sem confissão, sem crédito.",
+    title: "Registrar progresso é obrigatório",
+    body: "Toca em \"Registrar progresso\" sempre que fizer alguma coisa. É isso que mantém a sequência viva e o gráfico honesto — sem registro, sem crédito.",
     icons: [Check],
   },
   {
