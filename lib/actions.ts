@@ -4,6 +4,8 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { Goal, Plan, UnitPreference, WeekStart } from "@/lib/types";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, numericRecurrenceRule, habitRecurrenceRule } from "@/lib/googleCalendar";
+import { buildPlanRows, toSubtasks } from "@/lib/trainingPlan";
+import { randomUUID } from "crypto";
 
 async function requireUser() {
   const session = await auth();
@@ -358,4 +360,69 @@ export async function updatePreferences(prefs: {
 }): Promise<void> {
   const userId = await requireUserId();
   await prisma.user.update({ where: { id: userId }, data: prefs });
+}
+
+// --- Replanejamento do bloco de treino ---
+
+export interface RescheduleResult {
+  deleted: number;
+  kept: number;
+  created: number;
+  firstDay: string;
+  raceDay: string;
+}
+
+/**
+ * Reconstrói o bloco de treino até a São Silvestre a partir de `lib/trainingPlan`.
+ *
+ * Apaga as metas do plano que nunca foram feitas e recria o bloco inteiro.
+ * Metas com check-in registrado ou marcadas como feitas são preservadas, para
+ * não perder o histórico real de treino — a menos que `purgeAll` seja true.
+ *
+ * As metas são criadas em lote (dois createMany, com ids gerados aqui) em vez
+ * de uma a uma: são 123 metas com subtarefas, e o laço sequencial estourava o
+ * limite de tempo da função serverless.
+ */
+export async function reschedulePlan(planId: string, purgeAll = false): Promise<RescheduleResult> {
+  const userId = await requireUserId();
+
+  const plan = await prisma.plan.findFirst({ where: { id: planId, userId } });
+  if (!plan) throw new Error("Plano não encontrado");
+
+  const rows = buildPlanRows();
+
+  const existing = await prisma.goal.findMany({
+    where: { planId: plan.id },
+    select: { id: true, forceDone: true, _count: { select: { checkins: true } } },
+  });
+  const toDelete = existing.filter(
+    (g) => purgeAll || !(g.forceDone === true || g._count.checkins > 0)
+  );
+
+  const goalData = rows.map((row) => ({
+    id: randomUUID(),
+    planId: plan.id,
+    type: "task",
+    title: row.tipo,
+    targetDate: row.date,
+    forceDone: false,
+  }));
+
+  const subtaskData = rows.flatMap((row, i) =>
+    toSubtasks(row).map((text) => ({ goalId: goalData[i].id, text, done: false }))
+  );
+
+  await prisma.$transaction([
+    prisma.goal.deleteMany({ where: { id: { in: toDelete.map((g) => g.id) } } }),
+    prisma.goal.createMany({ data: goalData }),
+    prisma.subtask.createMany({ data: subtaskData }),
+  ]);
+
+  return {
+    deleted: toDelete.length,
+    kept: existing.length - toDelete.length,
+    created: rows.length,
+    firstDay: rows[0].date.toISOString().slice(0, 10),
+    raceDay: rows[rows.length - 1].date.toISOString().slice(0, 10),
+  };
 }
