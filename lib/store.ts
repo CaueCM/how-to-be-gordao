@@ -3,7 +3,10 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import type {
   CalendarViewMode,
   Goal,
+  HabitCheckin,
+  NumericCheckin,
   Plan,
+  TaskCheckin,
   Screen,
   UnitPreference,
   WeekStart,
@@ -11,6 +14,23 @@ import type {
 } from "./types";
 import { todayISO } from "./business";
 import * as api from "./actions";
+
+// Espelha recomputeGoalAggregates no servidor: o streak é desnormalizado na
+// meta, então editar o histórico exige recalcular a sequência do zero.
+function habitStreaks(checkins: HabitCheckin[]): { streakCurrent: number; streakBest: number } {
+  const asc = [...checkins].sort((a, b) => a.date.localeCompare(b.date));
+  let best = 0;
+  let run = 0;
+  for (const c of asc) {
+    if (c.done) {
+      run += 1;
+      best = Math.max(best, run);
+    } else {
+      run = 0;
+    }
+  }
+  return { streakCurrent: run, streakBest: best };
+}
 
 const EMPTY_WIZARD_FIELDS: WizardFields = {
   title: "",
@@ -130,6 +150,8 @@ interface AppState {
   setCheckinTaskDone: (v: boolean) => void;
   toggleSubtask: (goalId: string, subtaskId: string) => void;
   submitCheckin: () => void;
+  updateCheckin: (goalId: string, checkinId: string, updates: { value?: number; done?: boolean; note?: string }) => void;
+  deleteCheckin: (goalId: string, checkinId: string) => void;
   deleteGoal: (goalId: string) => void;
 
   openEditGoal: (goalId: string) => void;
@@ -358,6 +380,7 @@ export const useAppStore = create<AppState>()(
       submitCheckin: () => {
         const { checkinGoalId, checkinValue, checkinNote, checkinHabitDone, checkinTaskDone, plans, today } = get();
         if (!checkinGoalId) return;
+        const checkinId = crypto.randomUUID();
         const plans2 = plans.map((p) => ({
           ...p,
           goals: p.goals.map((g) => {
@@ -366,7 +389,7 @@ export const useAppStore = create<AppState>()(
               return {
                 ...g,
                 currentValue: Number(checkinValue) || g.currentValue,
-                checkins: [{ date: today, value: Number(checkinValue), note: checkinNote }, ...g.checkins],
+                checkins: [{ id: checkinId, date: today, value: Number(checkinValue), note: checkinNote }, ...g.checkins],
               };
             }
             if (g.type === "habit") {
@@ -375,19 +398,20 @@ export const useAppStore = create<AppState>()(
                 ...g,
                 streakCurrent: nc,
                 streakBest: Math.max(g.streakBest, nc),
-                checkins: [{ date: today, done: checkinHabitDone, note: checkinNote }, ...g.checkins],
+                checkins: [{ id: checkinId, date: today, done: checkinHabitDone, note: checkinNote }, ...g.checkins],
               };
             }
             return {
               ...g,
               forceDone: checkinTaskDone,
-              checkins: [{ date: today, note: checkinNote }, ...g.checkins],
+              checkins: [{ id: checkinId, date: today, note: checkinNote }, ...g.checkins],
             };
           }),
         }));
         set({ plans: plans2, checkinGoalId: null });
         void api
           .submitCheckin({
+            id: checkinId,
             goalId: checkinGoalId,
             date: today,
             value: Number(checkinValue),
@@ -396,6 +420,62 @@ export const useAppStore = create<AppState>()(
             note: checkinNote,
           })
           .catch(console.error);
+      },
+
+      updateCheckin: (goalId, checkinId, updates) => {
+        set((s) => ({
+          plans: s.plans.map((p) => ({
+            ...p,
+            goals: p.goals.map((g) => {
+              if (g.id !== goalId) return g;
+              const checkins = g.checkins.map((c) =>
+                c.id === checkinId ? { ...c, ...updates } : c
+              );
+              if (g.type === "numeric") {
+                const latest = [...(checkins as NumericCheckin[])].sort((a, b) =>
+                  a.date.localeCompare(b.date)
+                );
+                return {
+                  ...g,
+                  checkins: checkins as NumericCheckin[],
+                  currentValue: latest[latest.length - 1]?.value ?? g.startValue,
+                };
+              }
+              if (g.type === "habit") {
+                return { ...g, checkins: checkins as HabitCheckin[], ...habitStreaks(checkins as HabitCheckin[]) };
+              }
+              return { ...g, checkins: checkins as TaskCheckin[] };
+            }),
+          })),
+        }));
+        void api.updateCheckin(checkinId, updates).catch(console.error);
+      },
+
+      deleteCheckin: (goalId, checkinId) => {
+        set((s) => ({
+          plans: s.plans.map((p) => ({
+            ...p,
+            goals: p.goals.map((g) => {
+              if (g.id !== goalId) return g;
+              const checkins = g.checkins.filter((c) => c.id !== checkinId);
+              if (g.type === "numeric") {
+                const latest = [...(checkins as NumericCheckin[])].sort((a, b) =>
+                  a.date.localeCompare(b.date)
+                );
+                return {
+                  ...g,
+                  checkins: checkins as NumericCheckin[],
+                  currentValue: latest[latest.length - 1]?.value ?? g.startValue,
+                };
+              }
+              if (g.type === "habit") {
+                return { ...g, checkins: checkins as HabitCheckin[], ...habitStreaks(checkins as HabitCheckin[]) };
+              }
+              return { ...g, checkins: checkins as TaskCheckin[] };
+            }),
+          })),
+        }));
+        void api.deleteCheckin(checkinId).catch(console.error);
       },
 
       deleteGoal: (goalId) => {

@@ -1,18 +1,21 @@
 export type PlanIcon = "pulse" | "book" | "briefcase";
 
 export interface NumericCheckin {
+  id: string;
   date: string;
   value: number;
   note: string;
 }
 
 export interface HabitCheckin {
+  id: string;
   date: string;
   done: boolean;
   note: string;
 }
 
 export interface TaskCheckin {
+  id: string;
   date: string;
   note: string;
 }

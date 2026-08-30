@@ -20,7 +20,13 @@ export function GoalRow({ goal }: { goal: GoalViewModel }) {
       </IconBox>
       <div className="flex-1 min-w-0">
         <p className="text-[14px] font-semibold text-[var(--color-text)] truncate">{goal.title}</p>
-        <p className="text-[11px] text-[var(--color-neutral-400)] truncate">{goal.subtitle}</p>
+        <p className="text-[11px] text-[var(--color-neutral-400)] truncate">
+          {goal.dateLabel && (
+            <span className="font-semibold text-[var(--color-text)]">{goal.dateLabel}</span>
+          )}
+          {goal.dateLabel && goal.subtitle ? " · " : ""}
+          {goal.subtitle}
+        </p>
         <div className="mt-1">
           <ProgressBar pct={goal.progressPct} height={4} />
         </div>

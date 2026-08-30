@@ -51,7 +51,7 @@ interface GoalWithRelations {
   streakCurrent: number | null;
   streakBest: number | null;
   subtasks: { id: string; text: string; done: boolean }[];
-  checkins: { date: Date; value: number | null; done: boolean | null; note: string | null }[];
+  checkins: { id: string; date: Date; value: number | null; done: boolean | null; note: string | null }[];
 }
 
 function serializeGoal(g: GoalWithRelations): Goal {
@@ -69,7 +69,7 @@ function serializeGoal(g: GoalWithRelations): Goal {
       targetDate: fromDateOnly(g.targetDate),
       planStartDate: fromDateOnly(g.planStartDate),
       frequency: (g.frequency as "daily" | "weekly") ?? "weekly",
-      checkins: checkins.map((c) => ({ date: fromDateOnly(c.date), value: c.value ?? 0, note: c.note ?? "" })),
+      checkins: checkins.map((c) => ({ id: c.id, date: fromDateOnly(c.date), value: c.value ?? 0, note: c.note ?? "" })),
     };
   }
   if (g.type === "task") {
@@ -80,7 +80,7 @@ function serializeGoal(g: GoalWithRelations): Goal {
       targetDate: fromDateOnly(g.targetDate),
       forceDone: g.forceDone ?? false,
       subtasks: g.subtasks.map((s) => ({ id: s.id, text: s.text, done: s.done })),
-      checkins: checkins.map((c) => ({ date: fromDateOnly(c.date), note: c.note ?? "" })),
+      checkins: checkins.map((c) => ({ id: c.id, date: fromDateOnly(c.date), note: c.note ?? "" })),
     };
   }
   return {
@@ -90,7 +90,7 @@ function serializeGoal(g: GoalWithRelations): Goal {
     targetFrequency: g.targetFrequency ?? "",
     streakCurrent: g.streakCurrent ?? 0,
     streakBest: g.streakBest ?? 0,
-    checkins: checkins.map((c) => ({ date: fromDateOnly(c.date), done: c.done ?? false, note: c.note ?? "" })),
+    checkins: checkins.map((c) => ({ id: c.id, date: fromDateOnly(c.date), done: c.done ?? false, note: c.note ?? "" })),
   };
 }
 
@@ -316,6 +316,7 @@ export async function toggleSubtask(goalId: string, subtaskId: string): Promise<
 }
 
 interface SubmitCheckinInput {
+  id?: string;
   goalId: string;
   date: string;
   value?: number;
@@ -331,14 +332,14 @@ export async function submitCheckin(input: SubmitCheckinInput): Promise<void> {
   await prisma.$transaction(async (tx) => {
     if (goal.type === "numeric") {
       await tx.checkin.create({
-        data: { goalId: goal.id, date: toDateOnly(input.date), value: input.value ?? 0, note: input.note },
+        data: { id: input.id, goalId: goal.id, date: toDateOnly(input.date), value: input.value ?? 0, note: input.note },
       });
       await tx.goal.update({ where: { id: goal.id }, data: { currentValue: input.value ?? goal.currentValue ?? 0 } });
     } else if (goal.type === "habit") {
       const done = !!input.habitDone;
       const nextStreak = done ? (goal.streakCurrent ?? 0) + 1 : 0;
       await tx.checkin.create({
-        data: { goalId: goal.id, date: toDateOnly(input.date), done, note: input.note },
+        data: { id: input.id, goalId: goal.id, date: toDateOnly(input.date), done, note: input.note },
       });
       await tx.goal.update({
         where: { id: goal.id },
@@ -346,7 +347,7 @@ export async function submitCheckin(input: SubmitCheckinInput): Promise<void> {
       });
     } else {
       await tx.checkin.create({
-        data: { goalId: goal.id, date: toDateOnly(input.date), note: input.note },
+        data: { id: input.id, goalId: goal.id, date: toDateOnly(input.date), note: input.note },
       });
       await tx.goal.update({ where: { id: goal.id }, data: { forceDone: !!input.taskDone } });
     }
@@ -360,6 +361,84 @@ export async function updatePreferences(prefs: {
 }): Promise<void> {
   const userId = await requireUserId();
   await prisma.user.update({ where: { id: userId }, data: prefs });
+}
+
+// --- Edição de check-ins já registrados ---
+
+async function assertOwnsCheckin(checkinId: string, userId: string) {
+  const checkin = await prisma.checkin.findFirst({
+    where: { id: checkinId, goal: { plan: { userId } } },
+  });
+  if (!checkin) throw new Error("Registro não encontrado");
+  return checkin;
+}
+
+/**
+ * Recalcula os agregados que a meta guarda desnormalizados a partir do
+ * histórico completo de check-ins.
+ *
+ * Necessário depois de editar ou apagar um registro: `currentValue` (numérica)
+ * e o streak (hábito) são gravados no momento do check-in, então mexer no
+ * histórico sem recalcular deixaria a barra de progresso mostrando um valor
+ * que não corresponde a nenhum registro existente.
+ */
+async function recomputeGoalAggregates(goalId: string): Promise<void> {
+  const goal = await prisma.goal.findUnique({
+    where: { id: goalId },
+    include: { checkins: { orderBy: [{ date: "asc" }, { createdAt: "asc" }] } },
+  });
+  if (!goal) return;
+
+  if (goal.type === "numeric") {
+    const last = goal.checkins[goal.checkins.length - 1];
+    await prisma.goal.update({
+      where: { id: goalId },
+      data: { currentValue: last?.value ?? goal.startValue ?? 0 },
+    });
+  } else if (goal.type === "habit") {
+    let best = 0;
+    let run = 0;
+    for (const c of goal.checkins) {
+      if (c.done) {
+        run += 1;
+        best = Math.max(best, run);
+      } else {
+        run = 0;
+      }
+    }
+    await prisma.goal.update({
+      where: { id: goalId },
+      data: { streakCurrent: run, streakBest: best },
+    });
+  }
+}
+
+export interface UpdateCheckinInput {
+  value?: number;
+  done?: boolean;
+  note?: string;
+}
+
+export async function updateCheckin(checkinId: string, updates: UpdateCheckinInput): Promise<void> {
+  const userId = await requireUserId();
+  const checkin = await assertOwnsCheckin(checkinId, userId);
+
+  await prisma.checkin.update({
+    where: { id: checkinId },
+    data: {
+      ...(updates.value !== undefined ? { value: updates.value } : {}),
+      ...(updates.done !== undefined ? { done: updates.done } : {}),
+      ...(updates.note !== undefined ? { note: updates.note } : {}),
+    },
+  });
+  await recomputeGoalAggregates(checkin.goalId);
+}
+
+export async function deleteCheckin(checkinId: string): Promise<void> {
+  const userId = await requireUserId();
+  const checkin = await assertOwnsCheckin(checkinId, userId);
+  await prisma.checkin.delete({ where: { id: checkinId } });
+  await recomputeGoalAggregates(checkin.goalId);
 }
 
 // --- Replanejamento do bloco de treino ---

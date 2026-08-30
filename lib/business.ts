@@ -15,6 +15,8 @@ const MONTHS_PT = [
   "jul", "ago", "set", "out", "nov", "dez",
 ];
 
+const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
 const MONTHS_FULL_PT = [
   "janeiro", "fevereiro", "março", "abril", "maio", "junho",
   "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
@@ -37,6 +39,23 @@ export function daysBetween(a: string, b: string): number {
 export function formatDate(d: string): string {
   const dt = new Date(`${d}T00:00:00`);
   return `${dt.getDate()} ${MONTHS_PT[dt.getMonth()]}`;
+}
+
+/**
+ * Rótulo curto da data de uma meta, relativo a hoje.
+ *
+ * Num plano de treino diário o que importa é "quando eu faço isso", então
+ * hoje/amanhã/ontem viram palavra e o resto ganha o dia da semana — a data
+ * seca sozinha não diz se cai num sábado.
+ */
+export function formatGoalDate(target: string, today: string): string {
+  if (!target) return "";
+  const diff = daysBetween(today, target);
+  if (diff === 0) return "Hoje";
+  if (diff === 1) return "Amanhã";
+  if (diff === -1) return "Ontem";
+  const dt = new Date(`${target}T00:00:00`);
+  return `${WEEKDAY_LABELS[dt.getDay()]}, ${dt.getDate()} ${MONTHS_PT[dt.getMonth()]}`;
 }
 
 export function clamp(min: number, max: number, v: number): number {
@@ -151,7 +170,7 @@ export function buildGoalVM(goal: Goal, today: string): GoalViewModel {
     statusLabel,
     badgeBg,
     badgeColor,
-    dateLabel: isNumeric(goal) || isTask(goal) ? formatDate(goal.targetDate) : "",
+    dateLabel: isNumeric(goal) || isTask(goal) ? formatGoalDate(goal.targetDate, today) : "",
     targetFrequencyLabel: isHabit(goal) ? goal.targetFrequency : "",
   };
 }
@@ -241,7 +260,6 @@ const TONE_STYLE: Record<string, [string, string]> = {
   late: ["var(--color-danger)", "#fff"],
 };
 
-const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 function toneFor(tone: keyof typeof TONE_STYLE): { bg: string; color: string } {
   const [bg, color] = TONE_STYLE[tone];
