@@ -42,12 +42,15 @@ export default function Home() {
   const plansLoaded = useAppStore((s) => s.plansLoaded);
   const plansError = useAppStore((s) => s.plansError);
   const loadPlans = useAppStore((s) => s.loadPlans);
+  const loadDailyTasks = useAppStore((s) => s.loadDailyTasks);
   const hasOnboarded = useAppStore((s) => s.hasOnboarded);
   const openOnboarding = useAppStore((s) => s.openOnboarding);
 
   useEffect(() => {
-    if (status === "authenticated") void loadPlans();
-  }, [status, loadPlans]);
+    if (status !== "authenticated") return;
+    void loadPlans();
+    void loadDailyTasks();
+  }, [status, loadPlans, loadDailyTasks]);
 
   useEffect(() => {
     if (plansLoaded && !hasOnboarded) openOnboarding();

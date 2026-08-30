@@ -20,6 +20,14 @@ export interface TaskCheckin {
   note: string;
 }
 
+/** Item da listinha do dia. Não participa de nenhum cálculo de metas. */
+export interface DailyTask {
+  id: string;
+  date: string;
+  text: string;
+  done: boolean;
+}
+
 export interface Subtask {
   id: string;
   text: string;

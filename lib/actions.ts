@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import type { Goal, Plan, UnitPreference, WeekStart } from "@/lib/types";
+import type { DailyTask, Goal, Plan, UnitPreference, WeekStart } from "@/lib/types";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, numericRecurrenceRule, habitRecurrenceRule } from "@/lib/googleCalendar";
 import { buildPlanRows, toSubtasks } from "@/lib/trainingPlan";
 import { randomUUID } from "crypto";
@@ -361,6 +361,56 @@ export async function updatePreferences(prefs: {
 }): Promise<void> {
   const userId = await requireUserId();
   await prisma.user.update({ where: { id: userId }, data: prefs });
+}
+
+// --- Listinha do dia ---
+//
+// Itens soltos, presos ao usuário e a uma data. De propósito não têm relação
+// com Plan nem Goal: nada aqui entra em progresso, streak ou status de meta.
+
+async function assertOwnsDailyTask(taskId: string, userId: string) {
+  const task = await prisma.dailyTask.findFirst({ where: { id: taskId, userId } });
+  if (!task) throw new Error("Tarefa não encontrada");
+  return task;
+}
+
+export async function getDailyTasks(date: string): Promise<DailyTask[]> {
+  const userId = await requireUserId();
+  const tasks = await prisma.dailyTask.findMany({
+    where: { userId, date: toDateOnly(date) },
+    orderBy: { createdAt: "asc" },
+  });
+  return tasks.map((t) => ({
+    id: t.id,
+    date: fromDateOnly(t.date),
+    text: t.text,
+    done: t.done,
+  }));
+}
+
+export async function addDailyTask(id: string, date: string, text: string): Promise<void> {
+  const userId = await requireUserId();
+  await prisma.dailyTask.create({
+    data: { id, userId, date: toDateOnly(date), text },
+  });
+}
+
+export async function setDailyTaskDone(taskId: string, done: boolean): Promise<void> {
+  const userId = await requireUserId();
+  await assertOwnsDailyTask(taskId, userId);
+  await prisma.dailyTask.update({ where: { id: taskId }, data: { done } });
+}
+
+export async function updateDailyTaskText(taskId: string, text: string): Promise<void> {
+  const userId = await requireUserId();
+  await assertOwnsDailyTask(taskId, userId);
+  await prisma.dailyTask.update({ where: { id: taskId }, data: { text } });
+}
+
+export async function deleteDailyTask(taskId: string): Promise<void> {
+  const userId = await requireUserId();
+  await assertOwnsDailyTask(taskId, userId);
+  await prisma.dailyTask.delete({ where: { id: taskId } });
 }
 
 // --- Edição de check-ins já registrados ---

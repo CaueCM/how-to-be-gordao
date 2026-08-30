@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type {
   CalendarViewMode,
+  DailyTask,
   Goal,
   HabitCheckin,
   NumericCheckin,
@@ -29,6 +30,11 @@ let syncToken = 0;
  * tela deixou de corresponder ao banco, e aí vale pagar uma releitura para
  * voltar à verdade.
  */
+function recoverDailyTasks(err: unknown): void {
+  console.error(err);
+  void useAppStore.getState().loadDailyTasks();
+}
+
 function recoverFromFailedWrite(err: unknown): void {
   console.error(err);
   void useAppStore.getState().syncFromServer();
@@ -131,6 +137,12 @@ interface AppState {
   goLoginStep: (step: 0 | 1) => void;
   loadPlans: () => Promise<void>;
   syncFromServer: () => Promise<void>;
+  dailyTasks: DailyTask[];
+  loadDailyTasks: () => Promise<void>;
+  addDailyTask: (text: string) => void;
+  toggleDailyTask: (taskId: string) => void;
+  updateDailyTaskText: (taskId: string, text: string) => void;
+  deleteDailyTask: (taskId: string) => void;
 
   openOnboarding: () => void;
   closeOnboarding: () => void;
@@ -204,6 +216,7 @@ export const useAppStore = create<AppState>()(
       plansLoaded: false,
       plansLoading: false,
       plansError: null,
+      dailyTasks: [],
 
       hasOnboarded: true,
       onboardingOpen: false,
@@ -275,6 +288,47 @@ export const useAppStore = create<AppState>()(
         } catch (err) {
           console.error("Falha ao sincronizar com o servidor", err);
         }
+      },
+
+      loadDailyTasks: async () => {
+        try {
+          set({ dailyTasks: await api.getDailyTasks(get().today) });
+        } catch (err) {
+          console.error("Falha ao carregar a lista do dia", err);
+        }
+      },
+
+      addDailyTask: (text) => {
+        const trimmed = text.trim();
+        if (!trimmed) return;
+        const id = crypto.randomUUID();
+        const date = get().today;
+        set((s) => ({ dailyTasks: [...s.dailyTasks, { id, date, text: trimmed, done: false }] }));
+        void api.addDailyTask(id, date, trimmed).catch(recoverDailyTasks);
+      },
+
+      toggleDailyTask: (taskId) => {
+        const task = get().dailyTasks.find((t) => t.id === taskId);
+        if (!task) return;
+        const done = !task.done;
+        set((s) => ({
+          dailyTasks: s.dailyTasks.map((t) => (t.id === taskId ? { ...t, done } : t)),
+        }));
+        void api.setDailyTaskDone(taskId, done).catch(recoverDailyTasks);
+      },
+
+      updateDailyTaskText: (taskId, text) => {
+        const trimmed = text.trim();
+        if (!trimmed) return;
+        set((s) => ({
+          dailyTasks: s.dailyTasks.map((t) => (t.id === taskId ? { ...t, text: trimmed } : t)),
+        }));
+        void api.updateDailyTaskText(taskId, trimmed).catch(recoverDailyTasks);
+      },
+
+      deleteDailyTask: (taskId) => {
+        set((s) => ({ dailyTasks: s.dailyTasks.filter((t) => t.id !== taskId) }));
+        void api.deleteDailyTask(taskId).catch(recoverDailyTasks);
       },
 
       openOnboarding: () => set({ onboardingOpen: true, onboardingStep: 0 }),

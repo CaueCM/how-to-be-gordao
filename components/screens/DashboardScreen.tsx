@@ -5,6 +5,7 @@ import { useAppStore } from "@/lib/store";
 import { Screen, SectionLabel } from "@/components/ui/Screen";
 import { PlanCard } from "@/components/PlanCard";
 import { EmptyState } from "@/components/EmptyState";
+import { DailyTaskList } from "@/components/DailyTaskList";
 import { Button } from "@/components/ui/Button";
 import { CalendarDisconnectedBanner, TodayCheckinCard, StreakHighlightCard } from "@/components/DashboardBits";
 import { buildPlanVM, goalsDueToday } from "@/lib/business";
@@ -54,6 +55,11 @@ export function DashboardScreen() {
             }
           />
         )}
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <SectionLabel>Lista de hoje</SectionLabel>
+        <DailyTaskList />
       </div>
 
       {hasPlans && todayGoals.length > 0 && (
