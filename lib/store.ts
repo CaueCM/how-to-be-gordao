@@ -15,6 +15,11 @@ import type {
 import { todayISO } from "./business";
 import * as api from "./actions";
 
+// Ordem das sincronizações em voo. Marcar várias sub-tarefas em sequência
+// dispara uma releitura por toque; sem esse token, uma resposta lenta poderia
+// chegar depois de outra mais recente e devolver a tela a um estado antigo.
+let syncToken = 0;
+
 // Espelha recomputeGoalAggregates no servidor: o streak é desnormalizado na
 // meta, então editar o histórico exige recalcular a sequência do zero.
 function habitStreaks(checkins: HabitCheckin[]): { streakCurrent: number; streakBest: number } {
@@ -111,6 +116,7 @@ interface AppState {
 
   goLoginStep: (step: 0 | 1) => void;
   loadPlans: () => Promise<void>;
+  syncFromServer: () => Promise<void>;
 
   openOnboarding: () => void;
   closeOnboarding: () => void;
@@ -228,6 +234,35 @@ export const useAppStore = create<AppState>()(
         }
       },
 
+      /**
+       * Rebusca os planos no servidor e substitui o estado local.
+       *
+       * As mutações atualizam a tela de forma otimista, mas vários números
+       * exibidos são derivados no servidor (currentValue, streaks, status
+       * calculado sobre o histórico completo). Sem uma releitura, a tela fica
+       * mostrando a previsão do cliente em vez do que foi de fato gravado.
+       *
+       * Diferente de loadPlans, não mexe em plansLoading: isso roda depois de
+       * uma ação do usuário, e ligar o estado de carregamento faria a tela
+       * piscar a cada marcação.
+       */
+      syncFromServer: async () => {
+        const token = ++syncToken;
+        try {
+          const data = await api.getBootstrap();
+          if (token !== syncToken) return; // uma sincronização mais nova já começou
+          set({
+            plans: data.plans,
+            unitPreference: data.unitPreference,
+            weekStart: data.weekStart,
+            notificationsEnabled: data.notificationsEnabled,
+            hasOnboarded: data.hasOnboarded,
+          });
+        } catch (err) {
+          console.error("Falha ao sincronizar com o servidor", err);
+        }
+      },
+
       openOnboarding: () => set({ onboardingOpen: true, onboardingStep: 0 }),
       closeOnboarding: () => set({ onboardingOpen: false }),
       onboardingNext: () => set((s) => ({ onboardingStep: s.onboardingStep + 1 })),
@@ -333,7 +368,7 @@ export const useAppStore = create<AppState>()(
         const planId = wizardPlanId;
         const plans2 = plans.map((p) => (p.id === planId ? { ...p, goals: [...p.goals, goal] } : p));
         set({ plans: plans2, wizardStep: 4, newGoalId: id });
-        void api.createGoal(planId, goal).catch(console.error);
+        void api.createGoal(planId, goal).then(() => get().syncFromServer()).catch(console.error);
       },
       wizardViewGoal: () => {
         const id = get().newGoalId;
@@ -375,7 +410,7 @@ export const useAppStore = create<AppState>()(
             ),
           })),
         }));
-        void api.toggleSubtask(goalId, subtaskId).catch(console.error);
+        void api.toggleSubtask(goalId, subtaskId).then(() => get().syncFromServer()).catch(console.error);
       },
       submitCheckin: () => {
         const { checkinGoalId, checkinValue, checkinNote, checkinHabitDone, checkinTaskDone, plans, today } = get();
@@ -419,6 +454,7 @@ export const useAppStore = create<AppState>()(
             taskDone: checkinTaskDone,
             note: checkinNote,
           })
+          .then(() => get().syncFromServer())
           .catch(console.error);
       },
 
@@ -448,7 +484,7 @@ export const useAppStore = create<AppState>()(
             }),
           })),
         }));
-        void api.updateCheckin(checkinId, updates).catch(console.error);
+        void api.updateCheckin(checkinId, updates).then(() => get().syncFromServer()).catch(console.error);
       },
 
       deleteCheckin: (goalId, checkinId) => {
@@ -475,7 +511,7 @@ export const useAppStore = create<AppState>()(
             }),
           })),
         }));
-        void api.deleteCheckin(checkinId).catch(console.error);
+        void api.deleteCheckin(checkinId).then(() => get().syncFromServer()).catch(console.error);
       },
 
       deleteGoal: (goalId) => {
@@ -484,7 +520,7 @@ export const useAppStore = create<AppState>()(
           screen: "planDetail",
           selectedGoalId: null,
         }));
-        void api.deleteGoal(goalId).catch(console.error);
+        void api.deleteGoal(goalId).then(() => get().syncFromServer()).catch(console.error);
       },
 
       openEditGoal: (goalId) => {
@@ -585,29 +621,42 @@ export const useAppStore = create<AppState>()(
               targetDate: editFields.targetDate,
               frequency: editFields.frequency,
             })
+            .then(() => get().syncFromServer())
             .catch(console.error);
         } else if (goal.type === "task") {
-          void api.updateGoal(editGoalId, { title: editFields.title, targetDate: editFields.targetDate }).catch(console.error);
+          // Uma edição de tarefa vira várias chamadas (a meta e cada
+          // sub-tarefa criada, renomeada ou removida). Sincroniza uma vez só,
+          // depois que todas terminarem, em vez de uma releitura por chamada.
+          const pending: Promise<unknown>[] = [
+            api.updateGoal(editGoalId, { title: editFields.title, targetDate: editFields.targetDate }),
+          ];
 
           const originalIds = new Set(editOriginalSubtasks.map((s) => s.id));
           const currentIds = new Set(editFields.subtasks.map((s) => s.id));
           for (const st of editFields.subtasks) {
             if (!originalIds.has(st.id)) {
-              void api.addSubtask(editGoalId, st.id, st.text).catch(console.error);
+              pending.push(api.addSubtask(editGoalId, st.id, st.text));
             } else {
               const original = editOriginalSubtasks.find((s) => s.id === st.id);
               if (original && original.text !== st.text) {
-                void api.updateSubtaskText(st.id, st.text).catch(console.error);
+                pending.push(api.updateSubtaskText(st.id, st.text));
               }
             }
           }
           for (const original of editOriginalSubtasks) {
             if (!currentIds.has(original.id)) {
-              void api.removeSubtask(original.id).catch(console.error);
+              pending.push(api.removeSubtask(original.id));
             }
           }
+
+          void Promise.allSettled(pending).then((results) => {
+            for (const r of results) {
+              if (r.status === "rejected") console.error(r.reason);
+            }
+            return get().syncFromServer();
+          });
         } else {
-          void api.updateGoal(editGoalId, { title: editFields.title, targetFrequency: editFields.targetFrequency }).catch(console.error);
+          void api.updateGoal(editGoalId, { title: editFields.title, targetFrequency: editFields.targetFrequency }).then(() => get().syncFromServer()).catch(console.error);
         }
       },
 
