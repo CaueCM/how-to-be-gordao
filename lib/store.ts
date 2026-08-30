@@ -20,6 +20,20 @@ import * as api from "./actions";
 // chegar depois de outra mais recente e devolver a tela a um estado antigo.
 let syncToken = 0;
 
+/**
+ * Rede de segurança para uma escrita que falhou no servidor.
+ *
+ * As telas atualizam de forma otimista e derivam progresso, gráfico e status
+ * do estado local, então no caminho feliz não há nada a buscar — reler tudo a
+ * cada toque seria puro desperdício. Já quando a escrita falha, o que está na
+ * tela deixou de corresponder ao banco, e aí vale pagar uma releitura para
+ * voltar à verdade.
+ */
+function recoverFromFailedWrite(err: unknown): void {
+  console.error(err);
+  void useAppStore.getState().syncFromServer();
+}
+
 // Espelha recomputeGoalAggregates no servidor: o streak é desnormalizado na
 // meta, então editar o histórico exige recalcular a sequência do zero.
 function habitStreaks(checkins: HabitCheckin[]): { streakCurrent: number; streakBest: number } {
@@ -368,7 +382,7 @@ export const useAppStore = create<AppState>()(
         const planId = wizardPlanId;
         const plans2 = plans.map((p) => (p.id === planId ? { ...p, goals: [...p.goals, goal] } : p));
         set({ plans: plans2, wizardStep: 4, newGoalId: id });
-        void api.createGoal(planId, goal).then(() => get().syncFromServer()).catch(console.error);
+        void api.createGoal(planId, goal).catch(recoverFromFailedWrite);
       },
       wizardViewGoal: () => {
         const id = get().newGoalId;
@@ -410,7 +424,7 @@ export const useAppStore = create<AppState>()(
             ),
           })),
         }));
-        void api.toggleSubtask(goalId, subtaskId).then(() => get().syncFromServer()).catch(console.error);
+        void api.toggleSubtask(goalId, subtaskId).catch(recoverFromFailedWrite);
       },
       submitCheckin: () => {
         const { checkinGoalId, checkinValue, checkinNote, checkinHabitDone, checkinTaskDone, plans, today } = get();
@@ -454,8 +468,7 @@ export const useAppStore = create<AppState>()(
             taskDone: checkinTaskDone,
             note: checkinNote,
           })
-          .then(() => get().syncFromServer())
-          .catch(console.error);
+          .catch(recoverFromFailedWrite);
       },
 
       updateCheckin: (goalId, checkinId, updates) => {
@@ -484,7 +497,7 @@ export const useAppStore = create<AppState>()(
             }),
           })),
         }));
-        void api.updateCheckin(checkinId, updates).then(() => get().syncFromServer()).catch(console.error);
+        void api.updateCheckin(checkinId, updates).catch(recoverFromFailedWrite);
       },
 
       deleteCheckin: (goalId, checkinId) => {
@@ -511,7 +524,7 @@ export const useAppStore = create<AppState>()(
             }),
           })),
         }));
-        void api.deleteCheckin(checkinId).then(() => get().syncFromServer()).catch(console.error);
+        void api.deleteCheckin(checkinId).catch(recoverFromFailedWrite);
       },
 
       deleteGoal: (goalId) => {
@@ -520,7 +533,7 @@ export const useAppStore = create<AppState>()(
           screen: "planDetail",
           selectedGoalId: null,
         }));
-        void api.deleteGoal(goalId).then(() => get().syncFromServer()).catch(console.error);
+        void api.deleteGoal(goalId).catch(recoverFromFailedWrite);
       },
 
       openEditGoal: (goalId) => {
@@ -621,8 +634,7 @@ export const useAppStore = create<AppState>()(
               targetDate: editFields.targetDate,
               frequency: editFields.frequency,
             })
-            .then(() => get().syncFromServer())
-            .catch(console.error);
+            .catch(recoverFromFailedWrite);
         } else if (goal.type === "task") {
           // Uma edição de tarefa vira várias chamadas (a meta e cada
           // sub-tarefa criada, renomeada ou removida). Sincroniza uma vez só,
@@ -650,13 +662,12 @@ export const useAppStore = create<AppState>()(
           }
 
           void Promise.allSettled(pending).then((results) => {
-            for (const r of results) {
-              if (r.status === "rejected") console.error(r.reason);
-            }
-            return get().syncFromServer();
+            const failed = results.filter((r) => r.status === "rejected");
+            for (const r of failed) console.error((r as PromiseRejectedResult).reason);
+            if (failed.length) recoverFromFailedWrite(failed[0]);
           });
         } else {
-          void api.updateGoal(editGoalId, { title: editFields.title, targetFrequency: editFields.targetFrequency }).then(() => get().syncFromServer()).catch(console.error);
+          void api.updateGoal(editGoalId, { title: editFields.title, targetFrequency: editFields.targetFrequency }).catch(recoverFromFailedWrite);
         }
       },
 
@@ -675,3 +686,27 @@ export const useAppStore = create<AppState>()(
     }
   )
 );
+
+/**
+ * Assina a meta pelo id, em vez de assinar o método findGoal.
+ *
+ * findGoal é uma função estável do store: um componente que faz
+ * `useAppStore((s) => s.findGoal)` se inscreve numa identidade que nunca muda,
+ * então nunca é notificado quando `plans` muda. Ele lê o dado certo, mas só
+ * quando outra coisa provoca um render — era por isso que o progresso, o
+ * gráfico e o status congelavam na tela de detalhe.
+ *
+ * As mutações preservam a referência das metas que não mudaram, então este
+ * seletor devolve a mesma referência até que ESTA meta mude: o componente
+ * re-renderiza exatamente quando precisa, e não a cada toque em outra meta.
+ */
+export function useGoal(goalId: string | null): Goal | null {
+  return useAppStore((s) => {
+    if (!goalId) return null;
+    for (const plan of s.plans) {
+      const found = plan.goals.find((g) => g.id === goalId);
+      if (found) return found;
+    }
+    return null;
+  });
+}

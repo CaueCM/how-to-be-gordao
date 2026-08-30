@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAppStore } from "@/lib/store";
+import { useAppStore, useGoal } from "@/lib/store";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, FieldLabel } from "@/components/ui/Input";
@@ -12,7 +12,6 @@ import { HABIT_FREQUENCIES } from "@/components/wizard/NewGoalWizard";
 export function EditGoalModal() {
   const editGoalId = useAppStore((s) => s.editGoalId);
   const editFields = useAppStore((s) => s.editFields);
-  const findGoal = useAppStore((s) => s.findGoal);
   const closeEditGoal = useAppStore((s) => s.closeEditGoal);
   const updateEditField = useAppStore((s) => s.updateEditField);
   const addEditSubtask = useAppStore((s) => s.addEditSubtask);
@@ -22,9 +21,8 @@ export function EditGoalModal() {
 
   const [newSubtaskText, setNewSubtaskText] = useState("");
 
-  if (!editGoalId) return null;
-  const goal = findGoal(editGoalId).goal;
-  if (!goal) return null;
+  const goal = useGoal(editGoalId);
+  if (!editGoalId || !goal) return null;
 
   const handleAddSubtask = () => {
     const text = newSubtaskText.trim();

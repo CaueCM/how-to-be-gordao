@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAppStore } from "@/lib/store";
+import { useAppStore, useGoal } from "@/lib/store";
 import { Screen } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -15,7 +15,6 @@ import { CheckinHistory } from "@/components/CheckinHistory";
 
 export function GoalDetailScreen() {
   const selectedGoalId = useAppStore((s) => s.selectedGoalId);
-  const findGoal = useAppStore((s) => s.findGoal);
   const backToPlan = useAppStore((s) => s.backToPlan);
   const openCheckin = useAppStore((s) => s.openCheckin);
   const toggleSubtask = useAppStore((s) => s.toggleSubtask);
@@ -24,7 +23,7 @@ export function GoalDetailScreen() {
   const today = useAppStore((s) => s.today);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const goal = selectedGoalId ? findGoal(selectedGoalId).goal : null;
+  const goal = useGoal(selectedGoalId);
   if (!goal) return null;
 
   const vm = buildGoalVM(goal, today);
