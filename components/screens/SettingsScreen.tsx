@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Check, AlertTriangle } from "@/components/icons";
 import { reschedulePlan, type RescheduleResult } from "@/lib/actions";
+import { planSummary } from "@/lib/trainingPlan";
 
 export function SettingsScreen() {
   const { data: session } = useSession();
@@ -33,6 +34,7 @@ export function SettingsScreen() {
   const [rescheduling, setRescheduling] = useState(false);
   const [result, setResult] = useState<RescheduleResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const summary = planSummary();
 
   async function handleReschedule() {
     if (!trainingPlan) return;
@@ -159,8 +161,10 @@ export function SettingsScreen() {
             <div>
               <p className="text-[13px] font-semibold text-[var(--color-text)]">Replanejar até a São Silvestre</p>
               <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-neutral-400)]">
-                Reconstrói 18 semanas partindo do zero, de 31/08 até a prova em 31/12. Apaga os
-                treinos que você nunca fez e mantém os que já têm registro.
+                Reconstrói o bloco partindo do zero: {summary.weeks} semanas, de{" "}
+                {summary.firstDay.slice(8)}/{summary.firstDay.slice(5, 7)} até a prova em{" "}
+                {summary.raceDay.slice(8)}/{summary.raceDay.slice(5, 7)}. Apaga os treinos que você
+                nunca fez e mantém os que já têm registro.
               </p>
             </div>
 
@@ -168,7 +172,8 @@ export function SettingsScreen() {
               <div className="rounded-[14px] bg-[var(--color-success)]/10 p-4">
                 <p className="text-[12px] font-semibold text-[var(--color-text)]">Plano refeito</p>
                 <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-neutral-400)]">
-                  {result.created} treinos criados, de {result.firstDay} até {result.raceDay}.
+                  {result.created} treinos em {result.weeks} semanas, de {result.firstDay} até{" "}
+                  {result.raceDay}.
                   {" "}{result.deleted} apagados, {result.kept} preservados com histórico.
                 </p>
               </div>

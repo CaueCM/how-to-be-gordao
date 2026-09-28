@@ -3,7 +3,7 @@ config({ path: __dirname + "/../.env.local" });
 
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { buildPlanRows, toSubtasks, LONG_RUN_KM, DEFAULT_WEEKS } from "../lib/trainingPlan";
+import { buildPlan, toSubtasks, longRunPlan } from "../lib/trainingPlan";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -14,9 +14,10 @@ const PLAN_NAME = "Corrida + Musculação (Meia Maratona)";
 async function main() {
   const commit = process.argv.includes("--commit");
   const purgeAll = process.argv.includes("--purge-all");
-  const rows = buildPlanRows();
+  const { rows, weeks } = buildPlan();
+  const longRun = longRunPlan(weeks);
 
-  console.log(`Novo plano: ${rows.length} dias, ${DEFAULT_WEEKS} semanas`);
+  console.log(`Novo plano: ${rows.length} dias, ${weeks} semanas`);
   console.log(`Primeiro dia: ${rows[0].date.toISOString().slice(0, 10)} (${rows[0].dayName}) - ${rows[0].tipo}`);
   console.log(`Último dia:   ${rows[rows.length - 1].date.toISOString().slice(0, 10)} (${rows[rows.length - 1].dayName}) - ${rows[rows.length - 1].tipo}`);
   console.log(`Preserva histórico concluído: ${purgeAll ? "NÃO (--purge-all)" : "sim"}`);
@@ -29,9 +30,10 @@ async function main() {
     rows.slice(-4).forEach((r) => console.log(" ", r.date.toISOString().slice(0, 10), r.dayName.padEnd(8), "|", r.phase.padEnd(15), "|", r.tipo));
     console.log("\nProgressão do treino longo (domingos):");
     rows.filter((r) => r.tipo === "Corrida Longa").forEach((r) => {
-      const prev = LONG_RUN_KM[r.week - 1];
-      const mark = prev && LONG_RUN_KM[r.week] < prev ? "  <- absorção" : "";
-      console.log(`  S${String(r.week).padStart(2)} ${r.date.toISOString().slice(0, 10)}  ${String(LONG_RUN_KM[r.week]).padStart(2)} km  [${r.phase}]${mark}`);
+      const km = longRun[r.week - 1];
+      const prev = r.week > 1 ? longRun[r.week - 2] : 0;
+      const mark = prev && km < prev ? "  <- absorção" : "";
+      console.log(`  S${String(r.week).padStart(2)} ${r.date.toISOString().slice(0, 10)}  ${String(km).padStart(2)} km  [${r.phase}]${mark}`);
     });
     return;
   }
@@ -68,7 +70,7 @@ async function main() {
         title: row.tipo,
         targetDate: row.date,
         forceDone: false,
-        subtasks: { create: toSubtasks(row).map((text) => ({ text, done: false })) },
+        subtasks: { create: toSubtasks(row, weeks).map((text) => ({ text, done: false })) },
       },
     });
   }

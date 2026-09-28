@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { DailyTask, Goal, Plan, UnitPreference, WeekStart } from "@/lib/types";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, numericRecurrenceRule, habitRecurrenceRule } from "@/lib/googleCalendar";
-import { buildPlanRows, toSubtasks } from "@/lib/trainingPlan";
+import { buildPlan, toSubtasks } from "@/lib/trainingPlan";
 import { randomUUID } from "crypto";
 
 async function requireUser() {
@@ -497,6 +497,7 @@ export interface RescheduleResult {
   deleted: number;
   kept: number;
   created: number;
+  weeks: number;
   firstDay: string;
   raceDay: string;
 }
@@ -518,7 +519,7 @@ export async function reschedulePlan(planId: string, purgeAll = false): Promise<
   const plan = await prisma.plan.findFirst({ where: { id: planId, userId } });
   if (!plan) throw new Error("Plano não encontrado");
 
-  const rows = buildPlanRows();
+  const { rows, weeks } = buildPlan();
 
   const existing = await prisma.goal.findMany({
     where: { planId: plan.id },
@@ -538,7 +539,7 @@ export async function reschedulePlan(planId: string, purgeAll = false): Promise<
   }));
 
   const subtaskData = rows.flatMap((row, i) =>
-    toSubtasks(row).map((text) => ({ goalId: goalData[i].id, text, done: false }))
+    toSubtasks(row, weeks).map((text) => ({ goalId: goalData[i].id, text, done: false }))
   );
 
   await prisma.$transaction([
@@ -551,6 +552,7 @@ export async function reschedulePlan(planId: string, purgeAll = false): Promise<
     deleted: toDelete.length,
     kept: existing.length - toDelete.length,
     created: rows.length,
+    weeks,
     firstDay: rows[0].date.toISOString().slice(0, 10),
     raceDay: rows[rows.length - 1].date.toISOString().slice(0, 10),
   };
