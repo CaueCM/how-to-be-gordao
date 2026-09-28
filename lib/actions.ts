@@ -109,7 +109,15 @@ export async function getBootstrap(): Promise<BootstrapData> {
     orderBy: { createdAt: "asc" },
     include: {
       goals: {
-        orderBy: { createdAt: "asc" },
+        // Por data do treino, não por createdAt. O replanejamento insere tudo
+        // com createMany dentro de uma transação, e em Postgres o
+        // CURRENT_TIMESTAMP é o mesmo para a transação inteira — as 95 metas
+        // ficavam com createdAt idêntico e a ordem saía arbitrária.
+        // Hábitos não têm data e vão para o fim.
+        orderBy: [
+          { targetDate: { sort: "asc", nulls: "last" } },
+          { createdAt: "asc" },
+        ],
         include: { subtasks: true, checkins: true },
       },
     },

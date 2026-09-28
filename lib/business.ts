@@ -287,6 +287,25 @@ export function isNumericCheckpoint(goal: NumericGoal, dateIso: string): boolean
   return diff >= 0 && diff % 7 === 0;
 }
 
+/**
+ * Ordena metas pela data do compromisso, deixando as sem data (hábitos) no fim.
+ *
+ * Espelha o orderBy do servidor. É necessário no cliente porque a criação
+ * otimista acrescenta a meta no fim do array local, o que a deixaria fora de
+ * ordem até a próxima leitura do servidor.
+ */
+export function sortGoalsByDate(goals: Goal[]): Goal[] {
+  const dateOf = (g: Goal) => (isNumeric(g) || isTask(g) ? g.targetDate : "");
+  return [...goals].sort((a, b) => {
+    const da = dateOf(a);
+    const db = dateOf(b);
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da.localeCompare(db); // ISO: comparação lexicográfica é cronológica
+  });
+}
+
 export function goalsDueToday(goals: Goal[], today: string): Goal[] {
   return goals.filter((g) => {
     if (isNumeric(g)) {

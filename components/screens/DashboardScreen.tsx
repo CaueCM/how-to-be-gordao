@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { DailyTaskList } from "@/components/DailyTaskList";
 import { Button } from "@/components/ui/Button";
 import { CalendarDisconnectedBanner, TodayCheckinCard, StreakHighlightCard } from "@/components/DashboardBits";
-import { buildPlanVM, goalsDueToday } from "@/lib/business";
+import { buildPlanVM, goalsDueToday, sortGoalsByDate } from "@/lib/business";
 import type { HabitGoal } from "@/lib/types";
 
 export function DashboardScreen() {
@@ -22,7 +22,7 @@ export function DashboardScreen() {
   const plansVM = plans.map((p) => buildPlanVM(p));
   const allGoals = plans.flatMap((p) => p.goals);
 
-  const todayGoals = goalsDueToday(allGoals, today);
+  const todayGoals = sortGoalsByDate(goalsDueToday(allGoals, today));
   const streakGoals = allGoals.filter((g): g is HabitGoal => g.type === "habit");
 
   return (
