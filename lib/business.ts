@@ -199,12 +199,6 @@ export function buildChart(goal: NumericGoal, today: string): ChartData {
   const pad = 20;
   const xFor = (d: string) =>
     pad + ((new Date(`${d}T00:00:00`).getTime() - start.getTime()) / totalMs) * (W - 2 * pad);
-  const yRange = Math.abs(goal.targetValue - goal.startValue) || 1;
-  const yFor = (v: number) =>
-    H - pad - (Math.abs(v - goal.startValue) / yRange) * (H - 2 * pad);
-
-  const expectedPoints = `${pad},${yFor(goal.startValue).toFixed(1)} ${W - pad},${yFor(goal.targetValue).toFixed(1)}`;
-
   const sorted = [...goal.checkins].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
@@ -213,6 +207,26 @@ export function buildChart(goal: NumericGoal, today: string): ChartData {
     ...sorted,
     { date: today, value: goal.currentValue },
   ];
+
+  // O eixo Y mapeia o VALOR, não o quanto já se andou desde o início.
+  //
+  // A versão anterior usava `Math.abs(v - startValue) / range`, o que plotava
+  // distância percorrida: numa meta de emagrecer, o peso inicial ia para o
+  // fundo e o alvo para o topo, então a linha subia conforme o peso caía. O
+  // módulo também fazia com que andar para o lado errado (engordar numa meta
+  // de perder) desenhasse na mesma altura que progredir.
+  //
+  // Mapeando o valor, maior fica mais alto na tela: meta de queda desce, meta
+  // de ganho sobe, e passar do alvo aparece como passar da linha.
+  const values = [goal.startValue, goal.targetValue, ...pts.map((p) => p.value)];
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  // Meta degenerada (início igual ao alvo): evita divisão por zero; a linha
+  // fica reta na base, que é o melhor que se pode dizer de uma meta sem faixa.
+  const vSpan = maxV - minV || 1;
+  const yFor = (v: number) => H - pad - ((v - minV) / vSpan) * (H - 2 * pad);
+
+  const expectedPoints = `${pad},${yFor(goal.startValue).toFixed(1)} ${W - pad},${yFor(goal.targetValue).toFixed(1)}`;
   const actualPoints = pts.map((p) => `${xFor(p.date).toFixed(1)},${yFor(p.value).toFixed(1)}`).join(" ");
 
   return { expectedPoints, actualPoints };
