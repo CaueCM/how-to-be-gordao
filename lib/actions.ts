@@ -513,13 +513,13 @@ export interface RescheduleResult {
  * de uma a uma: são 123 metas com subtarefas, e o laço sequencial estourava o
  * limite de tempo da função serverless.
  */
-export async function reschedulePlan(planId: string, purgeAll = false): Promise<RescheduleResult> {
+export async function reschedulePlan(planId: string, todayISO: string, purgeAll = false): Promise<RescheduleResult> {
   const userId = await requireUserId();
 
   const plan = await prisma.plan.findFirst({ where: { id: planId, userId } });
   if (!plan) throw new Error("Plano não encontrado");
 
-  const { rows, weeks } = buildPlan();
+  const { rows, weeks } = buildPlan(todayISO);
 
   const existing = await prisma.goal.findMany({
     where: { planId: plan.id },

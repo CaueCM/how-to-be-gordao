@@ -27,6 +27,7 @@ export function SettingsScreen() {
   const toggleEmptyDemo = useAppStore((s) => s.toggleEmptyDemo);
   const openOnboarding = useAppStore((s) => s.openOnboarding);
   const plans = useAppStore((s) => s.plans);
+  const today = useAppStore((s) => s.today);
   const loadPlans = useAppStore((s) => s.loadPlans);
 
   const trainingPlan = plans.find((p) => p.name.toLowerCase().includes("corrida"));
@@ -34,14 +35,14 @@ export function SettingsScreen() {
   const [rescheduling, setRescheduling] = useState(false);
   const [result, setResult] = useState<RescheduleResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const summary = planSummary();
+  const summary = planSummary(today);
 
   async function handleReschedule() {
     if (!trainingPlan) return;
     setRescheduling(true);
     setError(null);
     try {
-      const res = await reschedulePlan(trainingPlan.id);
+      const res = await reschedulePlan(trainingPlan.id, today);
       setResult(res);
       setConfirming(false);
       await loadPlans();

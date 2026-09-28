@@ -44,11 +44,29 @@ const OMBRO = [
   "Encolhimento (Halter)",
 ];
 
-/** Segunda-feira do dia informado, ou a segunda seguinte se já passou dela. */
-export function mondayOnOrAfter(utc: number): number {
+/**
+ * Converte "YYYY-MM-DD" em timestamp UTC à meia-noite.
+ *
+ * O bloco é sempre calculado a partir de uma data PURA vinda do cliente, nunca
+ * de `Date.now()` no servidor: o servidor roda em UTC e São Paulo é UTC-3, de
+ * modo que apertar o botão depois das 21h já caía no dia seguinte em UTC.
+ */
+export function dateOnlyUTC(iso: string): number {
+  const [y, m, d] = iso.split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+
+/**
+ * Segunda-feira da semana que contém a data — nunca a seguinte.
+ *
+ * A versão anterior avançava para a próxima segunda, o que descartava a semana
+ * corrente inteira quando o bloco era gerado no meio dela. Com a data da prova
+ * fixa, cada semana perdida é irrecuperável, então o início ancora para trás.
+ */
+export function mondayOfWeek(utc: number): number {
   const weekday = new Date(utc).getUTCDay(); // 0 = domingo
-  const untilMonday = weekday === 1 ? 0 : (8 - weekday) % 7;
-  return utc + untilMonday * DAY_MS;
+  const sinceMonday = (weekday + 6) % 7; // segunda -> 0, domingo -> 6
+  return utc - sinceMonday * DAY_MS;
 }
 
 /**
@@ -215,14 +233,14 @@ export interface PlanShape {
 }
 
 /**
- * Monta o bloco a partir de uma data de referência (por padrão, agora).
+ * Monta o bloco a partir da data de hoje ("YYYY-MM-DD", no fuso do usuário).
  *
- * Começa na segunda da semana corrente se hoje já for segunda, senão na
- * seguinte — o plano é ancorado nos dias da semana (segunda Pull, domingo
- * longão), então começar no meio da semana deixaria a primeira quebrada.
+ * Começa na segunda da semana corrente: o plano é ancorado nos dias da semana
+ * (segunda Pull, domingo longão), então ancorar para trás mantém a estrutura e
+ * preserva a semana em curso.
  */
-export function buildPlan(fromUTC: number = Date.now()): PlanShape {
-  const startUTC = mondayOnOrAfter(fromUTC);
+export function buildPlan(todayISO: string): PlanShape {
+  const startUTC = mondayOfWeek(dateOnlyUTC(todayISO));
   const weeks = weeksUntilRace(startUTC);
   const longRun = longRunPlan(weeks);
   const rows: DayRow[] = [];
@@ -324,8 +342,8 @@ export function toSubtasks(row: DayRow, totalWeeks: number): string[] {
 }
 
 /** Resumo para a tela, sem precisar gerar o plano inteiro no cliente. */
-export function planSummary(fromUTC: number = Date.now()): { weeks: number; firstDay: string; raceDay: string } {
-  const startUTC = mondayOnOrAfter(fromUTC);
+export function planSummary(todayISO: string): { weeks: number; firstDay: string; raceDay: string } {
+  const startUTC = mondayOfWeek(dateOnlyUTC(todayISO));
   return {
     weeks: weeksUntilRace(startUTC),
     firstDay: new Date(startUTC).toISOString().slice(0, 10),

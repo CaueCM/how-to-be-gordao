@@ -14,7 +14,10 @@ const PLAN_NAME = "Corrida + Musculação (Meia Maratona)";
 async function main() {
   const commit = process.argv.includes("--commit");
   const purgeAll = process.argv.includes("--purge-all");
-  const { rows, weeks } = buildPlan();
+  // Permite fixar a data por argumento; por padrão, hoje no fuso local.
+  const dateArg = process.argv.find((a) => /^\d{4}-\d{2}-\d{2}$/.test(a));
+  const todayISO = dateArg ?? new Date().toLocaleDateString("en-CA");
+  const { rows, weeks } = buildPlan(todayISO);
   const longRun = longRunPlan(weeks);
 
   console.log(`Novo plano: ${rows.length} dias, ${weeks} semanas`);
